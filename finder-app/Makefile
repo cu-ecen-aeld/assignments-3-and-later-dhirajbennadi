@@ -1,8 +1,13 @@
 INCLUDE_DIRS = 
 LIB_DIRS = 
 #CC=aarch64-none-linux-gnu-gcc
-CC=gcc
+#CC=gcc
 
+ifeq ($(TARGET),CROSS_COMPILE)
+        CC = aarch64-none-linux-gnu-gcc
+else
+        CC = gcc
+endif
 
 HFILES= 
 CFILES= writer.c
