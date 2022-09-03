@@ -1,5 +1,13 @@
 #include "systemcalls.h"
 
+/*Dhiraj Bennadi*/
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+
+
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -16,6 +24,14 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    //printf("*******Entered Here: Dhiraj %s***********\n", cmd);
+
+    int retVal = system(cmd);
+
+    if(retVal != 0)
+    {
+        return false;
+    }
 
     return true;
 }
@@ -40,10 +56,14 @@ bool do_exec(int count, ...)
     va_start(args, count);
     char * command[count+1];
     int i;
+    //printf("*********\n");
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
+        //printf("%s\n", command[i]);
+
     }
+    //printf("*********\n");
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
@@ -58,8 +78,64 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    // int temp = 0;
+
+    // printf("Dhiraj Bennadi Number of Arguments = %d\n", count);
+
+    // while(temp < count)
+    // {
+    //     printf("************\n");
+    //     printf("Dhiraj Bennadi = %s\n", command[temp]);
+    //     temp++;
+    //     printf("************\n");
+    // }
+
+
+    
+    pid_t pid;
+    int status;
+    printf("^^^^^PID of the Parent Process = %d^^^^^^^\n", getpid());
+
+    pid = fork();
+
+    //printf("Pid Value = %d\n", pid);
+
+    /*Error*/
+    if(pid == -1)
+    {
+        return false;
+    }
+    else if(pid == 0)
+    {
+        printf("^^^^^PID of the Child Process = %d^^^^^^^\n", getpid());
+        execv(command[0], command);
+        exit(-1);
+
+        //printf("Child Process Exec Return Value = %d\n", execRetVal);
+        
+    }
+    else
+    {
+        if(waitpid(pid, &status, 0) == -1)
+        {
+            return false;
+        }
+        else
+        {
+            if (WIFEXITED(status) == true)    //returns true if child exited normally
+            {
+                printf("\nChild process terminated normally with exit status %d\n", WEXITSTATUS (status));
+                if(WEXITSTATUS(status) != 0)
+                    return false;
+                else
+                    return true;
+            }
+        }
+    }
 
     va_end(args);
+
+    printf("^^^^^^^^Process Exit^^^^^^^^ \n");
 
     return true;
 }
@@ -78,6 +154,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
+        printf("%s\n", command[i]);
     }
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
@@ -92,6 +169,68 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+
+    pid_t pid;
+    int status;
+    //printf("^^^^^PID of the Parent Process = %d^^^^^^^\n", getpid());
+
+    pid = fork();
+
+    //printf("Pid Value = %d\n", pid);
+
+    /*Error*/
+    if(pid == -1)
+    {
+        return false;
+    }
+    else if(pid == 0)
+    {
+        //printf("^^^^^PID of the Child Process = %d^^^^^^^\n", getpid());
+        int file = open(outputfile, O_WRONLY | O_CREAT , 0777);
+        if(file == -1)
+        {
+            exit(-1);
+        }
+
+        //printf("File Descriptor = %d\n", file);
+        int file2 = dup2(file , STDOUT_FILENO);
+
+        if(file2 == -1)
+        {
+            exit(-1);
+        }
+
+        //printf()
+        close(file);
+
+        execv(command[0], command);
+        exit(-1);
+
+        //printf("Child Process Exec Return Value = %d\n", execRetVal);
+        
+    }
+    else
+    {
+        if(waitpid(pid, &status, 0) == -1)
+        {
+            return false;
+        }
+        else
+        {
+            if (WIFEXITED(status) == true)    //returns true if child exited normally
+            {
+                printf("\nChild process terminated normally with exit status %d\n", WEXITSTATUS (status));
+                if(WEXITSTATUS(status) != 0)
+                    return false;
+                else
+                    return true;
+            }
+        }
+    }
+
+    //va_end(args);
+
+    //printf("^^^^^^^^Process Exit^^^^^^^^ \n");
 
     va_end(args);
 
