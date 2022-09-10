@@ -34,6 +34,8 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
     #git show
+    wget https://github.com/torvalds/linux/commit/e33a814e772cdc36436c8c188d8c42d019fda639.diff
+    git apply e33a814e772cdc36436c8c188d8c42d019fda639.diff
 
     echo "Dhiraj Bennadi: Kernel Build Steps"
     # TODO: Add your kernel build steps here
@@ -47,6 +49,7 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 fi
 
 echo "Adding the Image in outdir"
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
