@@ -138,7 +138,10 @@ make CROSS_COMPILE=${CROSS_COMPILE}
 # cp writer.sh ${OUTDIR}/rootfs/home
 # cp Makefile ${OUTDIR}/rootfs/home
 
-cp -r * ${OUTDIR}/rootfs/home
+cp ./writer ${OUTDIR}/rootfs/home
+cp ./*.sh ${OUTDIR}/rootfs/home
+#cp Makefile ${OUTDIR}/rootfs/home
+cp -r ./conf/ ${OUTDIR}/rootfs/home
 
 # TODO: Chown the root directory
 cd ${OUTDIR}/rootfs
