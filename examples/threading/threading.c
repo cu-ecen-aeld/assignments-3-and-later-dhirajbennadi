@@ -97,6 +97,7 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
     {
         DEBUG_LOG("Thread ID = %ld************\n", *thread);
         thread_data_ptr->threadId = *thread;
+        return true;
 
     }
     else
@@ -104,6 +105,7 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
         ERROR_LOG("Thread Creation Failed\n");
     }
 
+    /*TODO: Tried this logic,but the threading is not joinable*/
     if(thread_data_ptr != NULL)
     {
         free(thread_data_ptr);
