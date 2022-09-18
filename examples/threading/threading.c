@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #define MILLS_TO_MICROS     1000
+#define SUCCESS              0
 
 // Optional: use these functions to add debug or error prints to your application
 #define DEBUG_LOG(msg,...)
@@ -21,7 +22,6 @@ void* threadfunc(void* thread_param)
 
     if(!(pthread_mutex_lock(thread_func_args->mutexParameter)))
     {
-        //printf("Lock Successful****************\n");
         DEBUG_LOG("Mutex Lock Successful");
     }
     else
@@ -29,10 +29,8 @@ void* threadfunc(void* thread_param)
         ERROR_LOG("Mutex Locking Failed\n");
     }
 
-    while((usleep(thread_func_args->wait_to_release_ms * MILLS_TO_MICROS)))
-    {
-        ;
-    }
+    usleep(thread_func_args->wait_to_release_ms * MILLS_TO_MICROS);
+
     if(!pthread_mutex_unlock(thread_func_args->mutexParameter))
     {
         DEBUG_LOG("Mutex UnLock Successful");
@@ -51,6 +49,7 @@ void* threadfunc(void* thread_param)
 
 bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int wait_to_obtain_ms, int wait_to_release_ms)
 {
+    int retVal = -1;
     /**
      * TODO: allocate memory for thread_data, setup mutex and wait arguments, pass thread_data to created thread
      * using threadfunc() as entry point.
@@ -62,11 +61,7 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
 
     /*Allocating memory for thread data*/
 
-    /*Dhiraj Bennadi*/
-    // printf("********Dhiraj Bennadi**********\n\n");
-    // printf("%d\n", wait_to_obtain_ms);
-    // printf("%d\n", wait_to_release_ms);
-    // printf("********Dhiraj Bennadi**********\n\n");
+    printf("Dhiraj Bennadi*****************************\n");
 
     struct thread_data *thread_data_ptr = (struct thread_data *)malloc(sizeof(struct thread_data));
     if(thread_data_ptr == NULL)
@@ -95,14 +90,14 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
 
     /*Thread Creation*/
     //pthread_t userThread;
-    if(pthread_create(thread, NULL, threadfunc, (void*)thread_data_ptr) == 0)
+
+    retVal = pthread_create(thread, NULL, threadfunc, (void*)thread_data_ptr);
+
+    if(retVal == SUCCESS)
     {
-        //*thread = gettid();
-        //printf("Thread ID = %ld************\n", *thread);
         DEBUG_LOG("Thread ID = %ld************\n", *thread);
         thread_data_ptr->threadId = *thread;
-        
-        return true;
+
     }
     else
     {
@@ -115,6 +110,11 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
     }
 
     //pthread_join(*thread , NULL);
+
+    if(retVal == SUCCESS)
+    {
+        return true;
+    }
 
     return false;
 }
