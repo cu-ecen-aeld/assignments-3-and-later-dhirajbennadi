@@ -1,0 +1,5 @@
+Executing Shell script: /usr/bin/finder.sh
+\n
+File Count = 10
+Line Count = 10
+The number of files are 10 and the number of matching lines are 10
