@@ -12,7 +12,7 @@
 
 
 INCLUDE_DIRS = 
-LIB_DIRS = 
+LIB_DIRS = -lrt -pthread
 CC=$(CROSS_COMPILE)gcc
 
 
@@ -27,7 +27,7 @@ clean:
 	-rm -rf aesdsocket aesdsocket.o
 
 aesdsocket: aesdsocket.o
-	$(CC) -o $@ $< -g
+	$(CC) -o $@ $< -g $(LIB_DIRS)
 
 .c.o: ${SRCS}
 	$(CC) -c $^
