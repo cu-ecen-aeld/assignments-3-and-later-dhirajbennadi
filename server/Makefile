@@ -16,7 +16,7 @@ LIB_DIRS = -lrt -pthread
 CC=$(CROSS_COMPILE)gcc
 
 
-HFILES= 
+HFILES= queue.h
 CFILES= aesdsocket.c
 
 SRCS= ${HFILES} ${CFILES}
