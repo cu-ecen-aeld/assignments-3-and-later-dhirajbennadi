@@ -70,7 +70,7 @@ enum socket_states
     STATE_SEND_TO_CLIENT,
     STATE_CLOSING,
     STATE_EXIT
-} server_socket_state = STATE_OPENING_SOCKET;
+} server_socket_state = STATE_INIT;
 
 int sockfd_server;
 
@@ -427,7 +427,7 @@ int main(int argc, char *argv[])
     bool timer_started = false;
     int i = 0;
 
-
+    LOG_DBG("Starting socket server...\n");
     //check command line arguments
     if (argc > 2)
     {
@@ -449,6 +449,7 @@ int main(int argc, char *argv[])
     signal(SIGINT, signal_handler);
 
     pthread_mutex_init(&mutex_socket_communication, NULL);
+    server_socket_state = STATE_INIT;
 
     
 
@@ -462,6 +463,7 @@ int main(int argc, char *argv[])
             {
                 perror("Could not delete file");
             }
+            server_socket_state = STATE_OPENING_SOCKET;
             break;
 
         case STATE_OPENING_SOCKET:
@@ -502,6 +504,7 @@ int main(int argc, char *argv[])
                 server_socket_state = STATE_EXIT;
                 break;
             }
+            //daemon_mode = false;
             if (daemon_mode == true)
                 server_socket_state = STATE_START_DAEMON;
             else
