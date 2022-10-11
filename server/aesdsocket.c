@@ -533,11 +533,11 @@ void *socketThreadProcessing(void *ptr)
 
             //printf("Last Char of the File = %d*****************\n", lastCharOfFile);
 
-            printf("Malloc For Read From File before SIGGEV\n");
+            syslog(LOG_DEBUG, "Malloc For Read From File before SIGGEV - 1\n");
 
             readFromFile = (char *)malloc(sizeof(char) * lastCharOfFile);
 
-            printf("Malloc For Read From File before after SIGGEV\n");
+            syslog(LOG_DEBUG, "Malloc For Read From File after SIGGEV - 2\n");
 
             if (readFromFile == NULL)
             {
