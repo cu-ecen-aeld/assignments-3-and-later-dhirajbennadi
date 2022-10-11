@@ -341,7 +341,9 @@ int main(int argc, char **argv)
 
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
                     SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
+                    printf("Program Socket Structure Stage 1****************\n");
                     free(socketThreadProcessingStructure);
+                    printf("Program Socket Structure Stage 3****************\n");
                 }
             }
 
@@ -385,7 +387,7 @@ int main(int argc, char **argv)
             SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
             {
                 close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
+                //SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
                 free(socketThreadProcessingStructure);
             }
 
