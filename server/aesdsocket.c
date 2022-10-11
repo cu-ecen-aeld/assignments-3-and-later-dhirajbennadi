@@ -93,13 +93,13 @@ stateVarForSocket state = CREATE_SERVER_SOCKET;
 int main(int argc, char **argv)
 {
 
-    openlog("ServersOpsFinale-6", LOG_CONS, LOG_USER);
+    openlog("ProjectServer", LOG_CONS, LOG_USER);
     syslog(LOG_INFO, "***************************************** \n");
     printf("Pid of Process in Main = %d************\n", getpid());
-    syslog(LOG_INFO, "Pid of Process in Main = %d************\n" , getpid());
-    syslog(LOG_INFO, "Server Operations\n");
+    //syslog(LOG_INFO, "Pid of Process in Main = %d************\n" , getpid());
+    //syslog(LOG_INFO, "Server Operations\n");
 
-    syslog(LOG_INFO, "Registering Callbacks for Signal Handlers\n");
+    //syslog(LOG_INFO, "Registering Callbacks for Signal Handlers\n");
     signal(SIGINT, sig_handler);  // Register signal handler
     signal(SIGTERM, sig_handler); // Register signal handler
     // signal(SIGALRM,sig_handler); // Register signal handler
@@ -117,14 +117,14 @@ int main(int argc, char **argv)
 
     if (argc == 2)
     {
-        printf("Number of Arguments = %d*******************\n", argc);
+        //printf("Number of Arguments = %d*******************\n", argc);
         for (int i = 0; i < argc; i++)
         {
             printf("%s\n", argv[i]);
         }
         if (!strcmp(argv[1], "-d"))
         {
-            syslog(LOG_INFO, "[+] Deamon Process Ignition\n");
+            //syslog(LOG_INFO, "[+] Deamon Process Ignition\n");
             deamonFlag = true;
         }
     }
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
         {
         case CREATE_SERVER_SOCKET:
             /*Domain, Type, Protocol*/
-            syslog(LOG_INFO, "STATE 1: CREATE_SERVER_SOCKET");
+            //syslog(LOG_INFO, "STATE 1: CREATE_SERVER_SOCKET");
             serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 
             if (serverSocket < 0)
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
                 perror("[-] Socket Creation Failed\n");
                 state = STATE_SIGNAL_EXIT;
             }
-            syslog(LOG_INFO, "[+] Server Socket Created\n");
+            //syslog(LOG_INFO, "[+] Server Socket Created\n");
 
             memset(&serverAddress, '\0', sizeof(struct sockaddr_in));
             memset(&clientAddress, '\0', sizeof(struct sockaddr_in));
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
             break;
 
         case BIND_SOCKET:
-        syslog(LOG_INFO,"STATE 2: BIND_SOCKET");
+        //syslog(LOG_INFO,"STATE 2: BIND_SOCKET");
             bindSocketRetVal = bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
 
             if (bindSocketRetVal < 0)
@@ -189,7 +189,7 @@ int main(int argc, char **argv)
                 state = STATE_SIGNAL_EXIT;
             }
 
-            syslog(LOG_INFO, "[+] Bind Socket Completed\n");
+            //syslog(LOG_INFO, "[+] Bind Socket Completed\n");
 
             if(deamonFlag == true)
             {
@@ -204,7 +204,7 @@ int main(int argc, char **argv)
             break;
 
         case CHECK_DEAMON:
-            syslog(LOG_INFO,"STATE 3: CHECK_DEAMON");
+            //syslog(LOG_INFO,"STATE 3: CHECK_DEAMON");
 
                 state = LISTEN_SOCKET;
 
@@ -218,8 +218,8 @@ int main(int argc, char **argv)
                 else if (pid != 0)
                 {
                     printf("Pid of Parent = %d************\n", getpid());
-                    syslog(LOG_INFO, "Pid of Parent = %d************\n", getpid());
-                    syslog(LOG_INFO, "[+] Parent Process Exiting\n");
+                    //syslog(LOG_INFO, "Pid of Parent = %d************\n", getpid());
+                    //syslog(LOG_INFO, "[+] Parent Process Exiting\n");
                     exit(EXIT_SUCCESS);
                 }
 
@@ -253,11 +253,11 @@ int main(int argc, char **argv)
                 /* do its daemon thing... */
                 // return 0;
 
-                syslog(LOG_INFO, "[+] Daemon Started\n");
+                //syslog(LOG_INFO, "[+] Daemon Started\n");
             break;
 
         case LISTEN_SOCKET:
-        syslog(LOG_INFO,"STATE 4: LISTEN_SOCKET");
+        //syslog(LOG_INFO,"STATE 4: LISTEN_SOCKET");
             /*Server Socket Listening to Connections*/
             int listenRetVal = listen(serverSocket, 5);
 
@@ -271,7 +271,7 @@ int main(int argc, char **argv)
             break;
 
         case FILE_OPS:
-        syslog(LOG_INFO,"STATE 5: FILE_OPS");
+        //syslog(LOG_INFO,"STATE 5: FILE_OPS");
             fd = open("/var/tmp/aesdsocketdata", O_CREAT | O_RDWR | O_TRUNC, 0644);
             if (fd == -1)
             {
@@ -289,9 +289,9 @@ int main(int argc, char **argv)
             break;
 
         case STATE_ACCEPTING:
-            printf("Pid of Process = %d************\n", getpid());
-            syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
-            syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
+            //printf("Pid of Process = %d************\n", getpid());
+            //syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
+            //syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
             if ((deamonFlag == false) || (pid == 0))
             {
                 if (timerStart == false)
@@ -316,6 +316,15 @@ int main(int argc, char **argv)
 
             struct slist_data_s *socketThreadProcessingStructure = (struct slist_data_s *)malloc(sizeof(struct slist_data_s));
 
+            if(socketThreadProcessingStructure == NULL)
+            {
+                perror("[-] Malloc for Socket Thread Processing Structure Failed\n");
+                state = STATE_SIGNAL_EXIT;
+            }
+
+
+            syslog(LOG_DEBUG, "Malloc for Socket Thread Processing Structure\n");
+
             socketThreadProcessingStructure->socketParamters.fileDescriptor = fd;
             socketThreadProcessingStructure->socketParamters.clientSocket = clientSocket;
             socketThreadProcessingStructure->socketParamters.threadCompletionStatus = false;
@@ -332,7 +341,7 @@ int main(int argc, char **argv)
 
         case CLOSE_CLIENT_SOCKET:
 
-            syslog(LOG_INFO,"STATE 12: CLOSE_CLIENT_SOCKET");
+            //syslog(LOG_INFO,"STATE 12: CLOSE_CLIENT_SOCKET");
 
             SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
             {
@@ -341,9 +350,10 @@ int main(int argc, char **argv)
 
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
                     SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                    printf("Program Socket Structure Stage 1****************\n");
+                    //printf("Program Socket Structure Stage 1****************\n");
                     free(socketThreadProcessingStructure);
-                    printf("Program Socket Structure Stage 3****************\n");
+                    syslog(LOG_DEBUG, "Free for Socket Thread Processing Structure - Stage 1\n");
+                    //printf("Program Socket Structure Stage 3****************\n");
                 }
             }
 
@@ -351,7 +361,7 @@ int main(int argc, char **argv)
 
             if (signalExitFlag == true)
             {
-                //timer_delete(timeTest);
+                timer_delete(timeTest);
                 state = STATE_SIGNAL_EXIT;
                 //break;
             }
@@ -359,7 +369,7 @@ int main(int argc, char **argv)
 
         case STATE_SIGNAL_EXIT:
 
-            syslog(LOG_INFO, "STATE 13: CLOSE_CLIENT_SOCKET");
+            //syslog(LOG_INFO, "STATE 13: CLOSE_CLIENT_SOCKET");
             /*Do all the exit cleanup over here*/
             /*File Descriptor for the /var/tmp/aesdsocketdata*/
             if (close(fd) != 0)
@@ -381,7 +391,7 @@ int main(int argc, char **argv)
             /*Server Socket*/
             if (close(serverSocket) != 0)
             {
-                printf("Socket Closing Failed************\n");
+                //printf("Socket Closing Failed************\n");
             }
 
             SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
@@ -389,12 +399,13 @@ int main(int argc, char **argv)
                 close(socketThreadProcessingStructure->socketParamters.clientSocket);
                 //SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
                 free(socketThreadProcessingStructure);
+                syslog(LOG_DEBUG, "Free for Socket Thread Processing Structure - Stage 2\n");
             }
 
 
-            printf("Exiting Program....\n");
+            //printf("Exiting Program....\n");
 
-            syslog(LOG_INFO, "Exiting Program\n");
+            //syslog(LOG_INFO, "Exiting Program\n");
             syslog(LOG_INFO, "**************************************** \n");
 
             /*Closing Syslog File*/
@@ -415,8 +426,8 @@ int main(int argc, char **argv)
 
 void sig_handler(int signum)
 {
-    printf("Signal Handler Start\n");
-    syslog(LOG_INFO, "Signal Hanlder Start\n");
+    //printf("Signal Handler Start\n");
+    //syslog(LOG_INFO, "Signal Hanlder Start\n");
 
     if (signum == SIGINT)
     {
@@ -424,7 +435,8 @@ void sig_handler(int signum)
     }
     else if (signum == SIGTERM)
     {
-        printf("Caught signal = %d, exiting\n", SIGTERM);
+        syslog(LOG_INFO, "Caught signal = %d, exiting\n", SIGTERM);
+        //printf("Caught signal = %d, exiting\n", SIGTERM);
     }
 
     /*TODO: Include a flag and handle the flag exit conditions in main*/
@@ -437,8 +449,8 @@ void sig_handler(int signum)
 
     signalExitFlag = true;
 
-    printf("Signal Handler End\n");
-    syslog(LOG_INFO, "Signal Hanlder End\n");
+    //printf("Signal Handler End\n");
+    //syslog(LOG_INFO, "Signal Hanlder End\n");
 
 }
 
@@ -466,6 +478,7 @@ void *socketThreadProcessing(void *ptr)
         perror("[-] Malloc for Write Buffer Failed\n");
         state = THREAD_EXIT;
     }
+    syslog(LOG_INFO, "Malloc for Write Buffer\n");
 
     state = RECV_CLIENT;
 
@@ -475,7 +488,7 @@ void *socketThreadProcessing(void *ptr)
         switch (state)
         {
         case RECV_CLIENT:
-        syslog(LOG_INFO , "STATE 7: RECV_CLIENT\n");
+        //syslog(LOG_INFO , "STATE 7: RECV_CLIENT\n");
             bool exitLoop = true;
 
             while (exitLoop)
@@ -484,7 +497,7 @@ void *socketThreadProcessing(void *ptr)
 
                 if (recvClient == 0 || (strchr(bufferClientReceive, '\n') != NULL))
                 {
-                    syslog(LOG_INFO, "Packet Completed\n");
+                    //syslog(LOG_INFO, "Packet Completed\n");
                     exitLoop = false;
                 }
 
@@ -502,7 +515,7 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case WRITE_DATA_TO_FILE:
-        syslog(LOG_INFO , "STATE 8: WRITE_DATA_TO_FILE\n");
+        //syslog(LOG_INFO , "STATE 8: WRITE_DATA_TO_FILE\n");
 
             pthread_mutex_lock(&mutexSocket);
             bytesToBeWritten = write(threadParam->fileDescriptor, writebuffer, currentSize);
@@ -513,14 +526,18 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case READ_DATA_FROM_FILE:
-        syslog(LOG_INFO , "STATE 9: READ_DATA_FROM_FILE\n");
+        //syslog(LOG_INFO , "STATE 9: READ_DATA_FROM_FILE\n");
             pthread_mutex_lock(&mutexSocket);
             int lastCharOfFile = lseek(threadParam->fileDescriptor, 0, SEEK_END);
             pthread_mutex_unlock(&mutexSocket);
 
-            printf("Last Char of the File = %d*****************\n", lastCharOfFile);
+            //printf("Last Char of the File = %d*****************\n", lastCharOfFile);
+
+            printf("Malloc For Read From File before SIGGEV\n");
 
             readFromFile = (char *)malloc(sizeof(char) * lastCharOfFile);
+
+            printf("Malloc For Read From File before after SIGGEV\n");
 
             if (readFromFile == NULL)
             {
@@ -529,6 +546,7 @@ void *socketThreadProcessing(void *ptr)
                 break;
 
             }
+            syslog(LOG_INFO, "Malloc for Read Buffer\n");
 
             pthread_mutex_lock(&mutexSocket);
             lseek(threadParam->fileDescriptor, 0, SEEK_SET);
@@ -541,7 +559,7 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case SEND_CLIENT:
-        syslog(LOG_INFO , "STATE 10: SEND_CLIENT\n");
+        //syslog(LOG_INFO , "STATE 10: SEND_CLIENT\n");
             int clientSendRetVal = send(threadParam->clientSocket, readFromFile, bytesToBeRead, 0);
 
             // syslog(LOG_INFO, "Client Send Return Value = %d\n", clientSendRetVal);
@@ -555,10 +573,12 @@ void *socketThreadProcessing(void *ptr)
 
             free(readFromFile);
             free(writebuffer);
+            syslog(LOG_INFO, "Free for Read Buffer\n");
+            syslog(LOG_INFO, "Free for Write Buffer\n");
 
             if (close(threadParam->clientSocket) != 0)
             {
-                printf("Client Socket Closing Failed\n");
+                //printf("Client Socket Closing Failed\n");
             }
 
             state = THREAD_EXIT; 
@@ -570,7 +590,7 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case THREAD_EXIT:
-        syslog(LOG_INFO , "STATE 11: THREAD_EXIT\n");
+        //syslog(LOG_INFO , "STATE 11: THREAD_EXIT\n");
             threadParam->threadCompletionStatus = true;
             return NULL;
             break;
