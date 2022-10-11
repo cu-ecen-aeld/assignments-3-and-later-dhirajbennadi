@@ -644,13 +644,20 @@ int main(int argc, char *argv[])
                     status = close(socket_server_data_ptr->socket_thread_params.sockfd_client);
                     LOG_DBG("Thread data for thread %d removed\n", socket_server_data_ptr->socket_thread_params.threadIdx);
                     SLIST_REMOVE(&socket_head, socket_server_data_ptr, slist_data_s, entries);
-                    free(socket_server_data_ptr);
+                    if(socket_server_data_ptr != NULL)
+                    {
+                        free(socket_server_data_ptr);
+                        socket_server_data_ptr = NULL;
+                    }
+                    printf("Freed Socket Pointer\n");
+                }
+
                     
                 }
                     
 
                 //remove head
-            }
+            
             server_socket_state = STATE_ACCEPTING;
 
             if (signal_exit_request == true)
@@ -682,7 +689,12 @@ int main(int argc, char *argv[])
             {
                 close(socket_server_data_ptr->socket_thread_params.sockfd_client);
                 syslog(LOG_INFO, "Closed connection from %s", socket_server_data_ptr->socket_thread_params.str);
-                free(socket_server_data_ptr);
+                                    if(socket_server_data_ptr != NULL)
+                    {
+                        free(socket_server_data_ptr);
+                        socket_server_data_ptr = NULL;
+                        printf("Freed Socket Pointer\n");
+                    }
             }
             
 
