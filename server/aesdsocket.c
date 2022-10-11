@@ -1,615 +1,151 @@
-#include <stdio.h>
-#include <stdlib.h>
+/** **************************************************************************************************
+* aeesdsocket.c : This program 
+*                    opens socket bound to port 9000. 
+*                    Listens and accepts connection
+*                    Logs messages to syslog "accepted connection from xx" (xx : client IP)
+*                    Receives data over the connection and appends to /var/tmp/aesdsocketdata
+*                    returns content of var/tmp/aesdsocketdata to client
+*                    returns full content of var/tmp/aesdsocketdata to client on completed reception
+*                    Logs messages to syslog "Closed connection from xx" (xx : client IP)
+*                    Restarts accepting connections from new clients forever
+*                    Gracefully exits on SIGINT or SIGTERM
+*                    Logs message to the syslog  "Caught signal, exiting0 on Signals"
+*
+*************************************************************************************************** **/
 
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
+/***************Includes***************/
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
-#include <signal.h>
-
-#include <fcntl.h>
-
 #include <string.h>
+#include <unistd.h>
+#include <linux/fs.h>
+#include <stdlib.h>
+#include <syslog.h>
+#include <arpa/inet.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <signal.h>
-
-#include <syslog.h>
-
-/*Assignment 6 Thread Implementation*/
+#include <errno.h>
 #include <pthread.h>
-#include "queue.h"
 #include <time.h>
+#include <sys/time.h>
+#include "queue.h"
 
-struct threadSocketSt
+/***************Includes***************/
+#define BUF_SIZE 256
+#define PORT 9000
+#define FILE "/var/tmp/aesdsocketdata"
+
+#define MUTEX_LOCK pthread_mutex_lock(&mutex_socket_communication);
+#define MUTEX_UNLOCK pthread_mutex_unlock(&mutex_socket_communication);
+// #define NO_DEBUG
+
+#ifdef SYSLOG
+#define LOG_DBG(...) syslog(LOG_DEBUG, __VA_ARGS__)
+#define LOG_ERROR(...) syslog(LOG_ERR, __VA_ARGS__)
+#elif defined(NO_DEBUG)
+#define LOG_DBG(...)
+#define LOG_ERROR(...)
+#else
+#define LOG_DBG(...) printf(__VA_ARGS__)
+#define LOG_ERROR(...) printf(__VA_ARGS__)
+#endif
+
+/***************Variables***************/
+enum socket_states
 {
-    /*File Description*/
-    int fileDescriptor;
-    /*Client Socket*/
-    int clientSocket;
-    /*Thread Completion Status*/
-    bool threadCompletionStatus;
-};
+    STATE_INIT,
+    STATE_OPENING_SOCKET,
+    STATE_BINDING,
+    STATE_START_DAEMON,
+    STATE_LISTENING,
+    STATE_ACCEPTING,
+    STATE_OPENING_FILE,
+    STATE_RECEIVE_FROM_CLIENT,
+    STATE_WRITING_FILE,
+    STATE_READING_FILE,
+    STATE_SEND_TO_CLIENT,
+    STATE_CLOSING,
+    STATE_EXIT
+} server_socket_state = STATE_OPENING_SOCKET;
+
+int sockfd_server;
+
+int fd;
+int status;
+bool signal_exit_request = false;
+
+typedef struct
+{
+    int threadIdx;
+    int fd;
+    bool socket_thread_completion_flag;
+    int return_status;
+    int sockfd_client;
+    char *str;
+} threadParams_t;
+
+typedef struct slist_data_s socket_slist_data_t;
 
 struct slist_data_s
 {
-    // int value;
-    pthread_t socketThreadInstance;
-    struct threadSocketSt socketParamters;
+    pthread_t socket_thread;
+    threadParams_t socket_thread_params;
     SLIST_ENTRY(slist_data_s)
     entries;
 };
 
-#define PORT 9000 // the port users will be connecting to
+int return_status = 0;
+pthread_mutex_t mutex_socket_communication;
 
-#define BUFFER_STD_SIZE 256
 
-/*File Descriptor for /var/tmp/aesdsocketdata*/
-int fd = 0;
-/*Server Socket*/
-int serverSocket;
 
-/* Signal Handler */
-void sig_handler(int signum);
-
-bool deamonFlag = false;
-
-pid_t pid;
-
-bool signalExitFlag = false;
-
-pthread_mutex_t mutexSocket;
-
-/*Socket Processing Function*/
-void *socketThreadProcessing(void *ptr);
-
-void timerInit(int *fd, timer_t *timerId);
-void handle();
-
-typedef enum
+/******************************************************************************
+ * Signal handler
+ * ****************************************************************************/
+void signal_handler(int signo)
 {
-    CREATE_SERVER_SOCKET,
-    BIND_SOCKET,
-    CHECK_DEAMON,
-    LISTEN_SOCKET,
-    FILE_OPS,
-    STATE_ACCEPTING,
-    RECV_CLIENT,
-    WRITE_DATA_TO_FILE,
-    READ_DATA_FROM_FILE,
-    SEND_CLIENT,
-    THREAD_EXIT,
-    CLOSE_CLIENT_SOCKET,
-    STATE_SIGNAL_EXIT
-} stateVarForSocket;
-
-stateVarForSocket state = CREATE_SERVER_SOCKET;
-
-
-int main(int argc, char **argv)
-{
-
-    openlog("ProjectServer", LOG_CONS, LOG_USER);
-    syslog(LOG_INFO, "***************************************** \n");
-    printf("Pid of Process in Main = %d************\n", getpid());
-    //syslog(LOG_INFO, "Pid of Process in Main = %d************\n" , getpid());
-    //syslog(LOG_INFO, "Server Operations\n");
-
-    //syslog(LOG_INFO, "Registering Callbacks for Signal Handlers\n");
-    signal(SIGINT, sig_handler);  // Register signal handler
-    signal(SIGTERM, sig_handler); // Register signal handler
-    // signal(SIGALRM,sig_handler); // Register signal handler
-
-    // alarm(10);
-    timer_t timeTest;
-    bool timerStart = false;
-
-    /*Deamon Process Check*/
-    if (argc > 2)
+    if (signo == SIGINT || signo == SIGTERM)
     {
-        perror("Additional Arguments received\n");
-        exit(-1);
+        printf("\nCaught Signal, exiting\n");
+        syslog(LOG_DEBUG, "Caught Signal, exiting\n");
     }
 
-    if (argc == 2)
+    if (shutdown(sockfd_server, SHUT_RDWR))
     {
-        //printf("Number of Arguments = %d*******************\n", argc);
-        for (int i = 0; i < argc; i++)
-        {
-            printf("%s\n", argv[i]);
-        }
-        if (!strcmp(argv[1], "-d"))
-        {
-            //syslog(LOG_INFO, "[+] Deamon Process Ignition\n");
-            deamonFlag = true;
-        }
-    }
-
-    /*Initializing Mutex*/
-    int mutexInitialization = pthread_mutex_init(&mutexSocket, NULL);
-    if (mutexInitialization < 0)
-    {
-        perror("[-] Mutex Initialization Failed\n");
-        exit(-1);
-    }
-
-    int bindSocketRetVal;
-
-    struct sockaddr_in serverAddress;
-    struct sockaddr_in clientAddress;
-    int clientSocket;
-    socklen_t addr_size;
-
-    /*State Machine For Socket Communication*/
-    while (1)
-    {
-        switch (state)
-        {
-        case CREATE_SERVER_SOCKET:
-            /*Domain, Type, Protocol*/
-            //syslog(LOG_INFO, "STATE 1: CREATE_SERVER_SOCKET");
-            serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-
-            if (serverSocket < 0)
-            {
-                perror("[-] Socket Creation Failed\n");
-                state = STATE_SIGNAL_EXIT;
-            }
-            //syslog(LOG_INFO, "[+] Server Socket Created\n");
-
-            memset(&serverAddress, '\0', sizeof(struct sockaddr_in));
-            memset(&clientAddress, '\0', sizeof(struct sockaddr_in));
-
-            //set socket options
-            if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
-            {
-                perror("error in setsockopt");
-                state = STATE_SIGNAL_EXIT;
-                break;
-            }
-
-            serverAddress.sin_addr.s_addr = INADDR_ANY;
-            serverAddress.sin_family = AF_INET;
-            serverAddress.sin_port = htons(PORT);
-
-            state = BIND_SOCKET;
-            break;
-
-        case BIND_SOCKET:
-        //syslog(LOG_INFO,"STATE 2: BIND_SOCKET");
-            bindSocketRetVal = bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
-
-            if (bindSocketRetVal < 0)
-            {
-                perror("[-] Bind Failed\n");
-                state = STATE_SIGNAL_EXIT;
-            }
-
-            //syslog(LOG_INFO, "[+] Bind Socket Completed\n");
-
-            if(deamonFlag == true)
-            {
-                state = CHECK_DEAMON;
-            }
-            else
-            {
-                state = LISTEN_SOCKET;
-            }
-
-            
-            break;
-
-        case CHECK_DEAMON:
-            //syslog(LOG_INFO,"STATE 3: CHECK_DEAMON");
-
-                state = LISTEN_SOCKET;
-
-                pid = fork();
-
-                if (pid == -1)
-                {
-                    perror("Forking Failed\n");
-                    return -1;
-                }
-                else if (pid != 0)
-                {
-                    printf("Pid of Parent = %d************\n", getpid());
-                    //syslog(LOG_INFO, "Pid of Parent = %d************\n", getpid());
-                    //syslog(LOG_INFO, "[+] Parent Process Exiting\n");
-                    exit(EXIT_SUCCESS);
-                }
-
-                if (setsid() == -1)
-                {
-                    perror("Set Sid Failed\n");
-                    return -1;
-                }
-                /* set the working directory to the root directory */
-                if (chdir("/") == -1)
-                {
-                    perror("Changing Working Directory Failed\n");
-                    return -1;
-                }
-
-                close(STDOUT_FILENO);
-                close(STDIN_FILENO);
-                close(STDERR_FILENO);
-                /* close all open files--NR_OPEN is overkill, but works */
-                // for (int i = 0; i < NR_OPEN; i++)
-                // {
-                //     close(i);
-                // }
-                /* redirect fd's 0,1,2 to /dev/null */
-                open("/dev/null", O_RDWR);
-                /* stdin */
-                dup(0);
-                /* stdout */
-                dup(0);
-                /* stderror */
-                /* do its daemon thing... */
-                // return 0;
-
-                //syslog(LOG_INFO, "[+] Daemon Started\n");
-            break;
-
-        case LISTEN_SOCKET:
-        //syslog(LOG_INFO,"STATE 4: LISTEN_SOCKET");
-            /*Server Socket Listening to Connections*/
-            int listenRetVal = listen(serverSocket, 5);
-
-            if (listenRetVal < 0)
-            {
-                perror("[-] Listen Failed\n");
-                state = STATE_SIGNAL_EXIT;
-            }
-
-            state = FILE_OPS;
-            break;
-
-        case FILE_OPS:
-        //syslog(LOG_INFO,"STATE 5: FILE_OPS");
-            fd = open("/var/tmp/aesdsocketdata", O_CREAT | O_RDWR | O_TRUNC, 0644);
-            if (fd == -1)
-            {
-                perror("File Operation Failed\n");
-                state = STATE_SIGNAL_EXIT;
-            }
-
-
-            SLIST_HEAD(slisthead, slist_data_s)
-            socketHead;
-
-            SLIST_INIT(&socketHead);
-
-            state = STATE_ACCEPTING;
-            break;
-
-        case STATE_ACCEPTING:
-            //printf("Pid of Process = %d************\n", getpid());
-            //syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
-            //syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
-            if ((deamonFlag == false) || (pid == 0))
-            {
-                if (timerStart == false)
-                {
-                    timerInit(&fd, &timeTest);
-                    //timer_init(&fd, &timeTest);
-                    timerStart = true;
-                }
-            }
-
-            addr_size = sizeof(clientAddress);
-            clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &addr_size);
-
-            if (clientSocket < 0)
-            {
-                perror("[-] Accept Failed\n");
-                state = STATE_SIGNAL_EXIT;
-                break;
-            }
-
-            //syslog(LOG_INFO, "[+] Client Socket = %d\n", clientSocket);
-
-            struct slist_data_s *socketThreadProcessingStructure = (struct slist_data_s *)malloc(sizeof(struct slist_data_s));
-
-            if(socketThreadProcessingStructure == NULL)
-            {
-                perror("[-] Malloc for Socket Thread Processing Structure Failed\n");
-                state = STATE_SIGNAL_EXIT;
-            }
-
-
-            syslog(LOG_DEBUG, "Malloc for Socket Thread Processing Structure\n");
-
-            socketThreadProcessingStructure->socketParamters.fileDescriptor = fd;
-            socketThreadProcessingStructure->socketParamters.clientSocket = clientSocket;
-            socketThreadProcessingStructure->socketParamters.threadCompletionStatus = false;
-
-            pthread_create(&socketThreadProcessingStructure->socketThreadInstance, NULL, socketThreadProcessing,
-                           (void *)&socketThreadProcessingStructure->socketParamters);
-
-            SLIST_INSERT_HEAD(&socketHead, socketThreadProcessingStructure, entries);
-
-            pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
-
-            state = CLOSE_CLIENT_SOCKET;
-            break;
-
-        case CLOSE_CLIENT_SOCKET:
-
-            //syslog(LOG_INFO,"STATE 12: CLOSE_CLIENT_SOCKET");
-
-            SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
-            {
-                if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
-                {
-
-                    close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                    SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                    //printf("Program Socket Structure Stage 1****************\n");
-                    free(socketThreadProcessingStructure);
-                    syslog(LOG_DEBUG, "Free for Socket Thread Processing Structure - Stage 1\n");
-                    //printf("Program Socket Structure Stage 3****************\n");
-                }
-            }
-
-            state = STATE_ACCEPTING;
-
-            if (signalExitFlag == true)
-            {
-                timer_delete(timeTest);
-                state = STATE_SIGNAL_EXIT;
-                //break;
-            }
-            break;
-
-        case STATE_SIGNAL_EXIT:
-
-            //syslog(LOG_INFO, "STATE 13: CLOSE_CLIENT_SOCKET");
-            /*Do all the exit cleanup over here*/
-            /*File Descriptor for the /var/tmp/aesdsocketdata*/
-            if (close(fd) != 0)
-            {
-                printf("File Closing Failed************\n");
-            }
-
-
-            if (pthread_mutex_destroy(&mutexSocket) != 0)
-            {
-                perror("[-] Mutex Destroy Failed\n");
-            }
-
-            if (remove("/var/tmp/aesdsocketdata") == -1)
-            {
-                perror("[-] File Delete Failed\n");
-            }
-
-            /*Server Socket*/
-            if (close(serverSocket) != 0)
-            {
-                //printf("Socket Closing Failed************\n");
-            }
-
-            SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
-            {
-                close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                //SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                free(socketThreadProcessingStructure);
-                syslog(LOG_DEBUG, "Free for Socket Thread Processing Structure - Stage 2\n");
-            }
-
-
-            //printf("Exiting Program....\n");
-
-            //syslog(LOG_INFO, "Exiting Program\n");
-            syslog(LOG_INFO, "**************************************** \n");
-
-            /*Closing Syslog File*/
-            closelog();
-
-            /*Hard Exit with -1 as return value*/
-            return -1;
-
-            break;
-
-        default:
-            break;
-        }
-    }
-
-    return 0;
-}
-
-void sig_handler(int signum)
-{
-    //printf("Signal Handler Start\n");
-    //syslog(LOG_INFO, "Signal Hanlder Start\n");
-
-    if (signum == SIGINT)
-    {
-        syslog(LOG_INFO, "Caught signal = %d, exiting\n", SIGINT);
-    }
-    else if (signum == SIGTERM)
-    {
-        syslog(LOG_INFO, "Caught signal = %d, exiting\n", SIGTERM);
-        //printf("Caught signal = %d, exiting\n", SIGTERM);
-    }
-
-    /*TODO: Include a flag and handle the flag exit conditions in main*/
-    /*Suggestion by Dan Walkes in Lectures*/
-    if (shutdown(serverSocket, SHUT_RDWR))
-    {
-        perror("[-] Failed on Shutdown\n");
+        perror("Failed on shutdown()");
         syslog(LOG_ERR, "Could not close socket file descriptor in signal handler : %s", strerror(errno));
     }
 
-    signalExitFlag = true;
-
-    //printf("Signal Handler End\n");
-    //syslog(LOG_INFO, "Signal Hanlder End\n");
-
+    signal_exit_request = true;
+    syslog(LOG_INFO, "Caught Signal, exiting");
 }
 
-/*Thread Function for Sockets*/
 
-void *socketThreadProcessing(void *ptr)
+/******************************************************************************
+ * timer add
+ * ****************************************************************************/
+static inline void timespec_add( struct timespec *result,
+                        const struct timespec *ts_1, const struct timespec *ts_2)
 {
-
-    int totalBuffer = BUFFER_STD_SIZE;
-    int currentSize  = 0;
-    char *writebuffer = NULL;
-    char *readFromFile = NULL;
-    int bytesToBeWritten = 0;
-    int lseekValue = 0;
-    int bytesToBeRead = 0;
-    int recvClient = 0;
-    char bufferClientReceive[BUFFER_STD_SIZE];
-
-    /*Thread Parameters*/
-    struct threadSocketSt *threadParam = (struct threadSocketSt *)ptr;
-
-    writebuffer = (char*)malloc(sizeof(char) * BUFFER_STD_SIZE);
-    if (writebuffer == NULL)
-    {
-        perror("[-] Malloc for Write Buffer Failed\n");
-        state = THREAD_EXIT;
+    result->tv_sec = ts_1->tv_sec + ts_2->tv_sec;
+    result->tv_nsec = ts_1->tv_nsec + ts_2->tv_nsec;
+    if( result->tv_nsec > 1000000000L ) {
+        result->tv_nsec -= 1000000000L;
+        result->tv_sec ++;
     }
-    syslog(LOG_INFO, "Malloc for Write Buffer\n");
-
-    state = RECV_CLIENT;
-
-    /*Implement state Machine*/
-    while (1)
-    {
-        switch (state)
-        {
-        case RECV_CLIENT:
-        //syslog(LOG_INFO , "STATE 7: RECV_CLIENT\n");
-            bool exitLoop = true;
-
-            while (exitLoop)
-            {
-                recvClient = recv(threadParam->clientSocket, bufferClientReceive, BUFFER_STD_SIZE, 0);
-
-                if (recvClient == 0 || (strchr(bufferClientReceive, '\n') != NULL))
-                {
-                    //syslog(LOG_INFO, "Packet Completed\n");
-                    exitLoop = false;
-                }
-
-                if ((totalBuffer - currentSize) < recvClient)
-                {
-                    totalBuffer += recvClient;
-                    writebuffer = (char *)realloc(writebuffer, sizeof(char) * totalBuffer);
-                }
-
-                memcpy(writebuffer + currentSize, bufferClientReceive, recvClient);
-                currentSize += recvClient;
-            }
-
-            state = WRITE_DATA_TO_FILE;
-            break;
-
-        case WRITE_DATA_TO_FILE:
-        //syslog(LOG_INFO , "STATE 8: WRITE_DATA_TO_FILE\n");
-
-            pthread_mutex_lock(&mutexSocket);
-            bytesToBeWritten = write(threadParam->fileDescriptor, writebuffer, currentSize);
-            lseekValue = lseek(threadParam->fileDescriptor, 0, SEEK_SET);
-            pthread_mutex_unlock(&mutexSocket);
-
-            state = READ_DATA_FROM_FILE;
-            break;
-
-        case READ_DATA_FROM_FILE:
-        //syslog(LOG_INFO , "STATE 9: READ_DATA_FROM_FILE\n");
-            pthread_mutex_lock(&mutexSocket);
-            int lastCharOfFile = lseek(threadParam->fileDescriptor, 0, SEEK_END);
-            pthread_mutex_unlock(&mutexSocket);
-
-            //printf("Last Char of the File = %d*****************\n", lastCharOfFile);
-
-            syslog(LOG_DEBUG, "Malloc For Read From File before SIGGEV - 1\n");
-
-            readFromFile = (char *)malloc(sizeof(char) * lastCharOfFile);
-
-            syslog(LOG_DEBUG, "Malloc For Read From File after SIGGEV - 2\n");
-
-            if (readFromFile == NULL)
-            {
-                perror("[-] Malloc Failed\n");
-                state = THREAD_EXIT;
-                break;
-
-            }
-            syslog(LOG_INFO, "Malloc for Read Buffer\n");
-
-            pthread_mutex_lock(&mutexSocket);
-            lseek(threadParam->fileDescriptor, 0, SEEK_SET);
-            bytesToBeRead = read(threadParam->fileDescriptor, readFromFile, lastCharOfFile);
-            pthread_mutex_unlock(&mutexSocket);
-
-            printf("Bytes Reading Using Seek End = %d\n", bytesToBeRead);
-
-            state = SEND_CLIENT;
-            break;
-
-        case SEND_CLIENT:
-        //syslog(LOG_INFO , "STATE 10: SEND_CLIENT\n");
-            int clientSendRetVal = send(threadParam->clientSocket, readFromFile, bytesToBeRead, 0);
-
-            // syslog(LOG_INFO, "Client Send Return Value = %d\n", clientSendRetVal);
-
-            if (clientSendRetVal < 0)
-            {
-                perror("[-] Client Sending Failed\n");
-                state = THREAD_EXIT;
-                //break;
-            }
-
-            free(readFromFile);
-            free(writebuffer);
-            syslog(LOG_INFO, "Free for Read Buffer\n");
-            syslog(LOG_INFO, "Free for Write Buffer\n");
-
-            if (close(threadParam->clientSocket) != 0)
-            {
-                //printf("Client Socket Closing Failed\n");
-            }
-
-            state = THREAD_EXIT; 
-
-            if (signalExitFlag == true)
-            {
-                state = THREAD_EXIT;
-            }
-            break;
-
-        case THREAD_EXIT:
-        //syslog(LOG_INFO , "STATE 11: THREAD_EXIT\n");
-            threadParam->threadCompletionStatus = true;
-            return NULL;
-            break;
-
-        default:
-            break;
-        }
-    }
-
-
 }
 
-/**********************************/
-/*     Timer Functionality        */
-/**********************************/
-/*Source : Linux System Programming*/
-void handle(union sigval sigval)
+
+/******************************************************************************
+ * timer handler
+ * ****************************************************************************/
+static void timer_thread(union sigval sigval)
 {
-    int *fd = (int *)sigval.sival_ptr;
+    int *fd = (int*) sigval.sival_ptr;
     struct tm *time_info;
     char time_format[100];
     time_t time_stamp;
@@ -618,45 +154,542 @@ void handle(union sigval sigval)
 
     time(&time_stamp);
     time_info = localtime(&time_stamp);
-    memcpy(time_format, "", 100);
-    time_size = strftime(time_format, 100, "timestamp:%a, %d %b %Y %T %z\n", time_info);
+    memcpy(time_format, "",100);
+    time_size = strftime(time_format,100,"timestamp:%a, %d %b %Y %T %z\n", time_info);
 
-    pthread_mutex_lock(&mutexSocket);
+    MUTEX_LOCK
     nwrite = write(*fd, time_format, time_size);
+    LOG_DBG("\tTimestamp %s written to file\n", time_format);
     if (nwrite < 0)
     {
-        perror("[-] Writing To File Failed");
+        perror("write failed");
     }
-    pthread_mutex_unlock(&mutexSocket);
+    MUTEX_UNLOCK
 }
 
-void timerInit(int *fd, timer_t *timerId)
+
+/***********************************************************************************************
+ * timer initialization
+ * resource : https://github.com/cu-ecen-aeld/aesd-lectures/blob/master/lecture9/timer_thread.c
+ * *********************************************************************************************/
+static void timer_init(int* fd, timer_t *timerid)
 {
-    struct sigevent evp;
-    struct itimerspec ts;
-    timer_t timer;
-    int ret;
-    memset(&evp, 0, sizeof(evp));
-    evp.sigev_value.sival_ptr = &timer;
-    evp.sigev_notify = SIGEV_THREAD;
-    evp.sigev_notify_function = handle;
-    // evp.sigev_value.sival_int = 3; // As an argument to handle()
-    evp.sigev_value.sival_ptr = fd;
-    ret = timer_create(CLOCK_MONOTONIC, &evp, &timer);
-    if (ret)
+    struct sigevent sev;
+    struct itimerspec itimerspec;
+    int clock_id = CLOCK_MONOTONIC;
+    struct timespec start_time = {0};
+    int status;
+
+
+
+    //memset(&td,0,sizeof(struct thread_data));
+    memset(&sev,0,sizeof(struct sigevent));
+
+    sev.sigev_notify = SIGEV_THREAD;
+    sev.sigev_value.sival_ptr = fd;
+    sev.sigev_notify_function = timer_thread;
+
+    if(timer_create(clock_id, &sev, timerid) != 0)
     {
-        perror("timer_create");
+        LOG_ERROR("Error creating timer\n");
+        return;
+    }
+    
+    status = clock_gettime(clock_id, &start_time);
+    if(status != 0)
+    {
+        perror("Error getting clock\n");
+        return;
     }
 
-    ts.it_interval.tv_sec = 10;
-    ts.it_interval.tv_nsec = 0;
-    ts.it_value.tv_sec = 10;
-    ts.it_value.tv_nsec = 0;
-    ret = timer_settime(timer, TIMER_ABSTIME, &ts, NULL);
-    if (ret)
+    itimerspec.it_interval.tv_sec = 10;
+    itimerspec.it_interval.tv_nsec = 1000000;//itimerspec.it_value.tv_nsec;
+
+     
+    timespec_add(&itimerspec.it_value,&start_time,&itimerspec.it_interval);
+    
+    status = timer_settime(*timerid, TIMER_ABSTIME, &itimerspec, NULL );
+    if(status != 0)
     {
-        perror("timer_settime");
+        LOG_ERROR("Error getting clock\n");
+        return;
     }
+    
 }
 
 
+/******************************************************************************
+ * socket communication on every accepted connection
+ * ****************************************************************************/
+void *socket_communication(void *threadp)
+{
+
+    long nread, nwrite, nsent, nreceived;
+    char *heap_buffer_for_write = NULL;
+    char *heap_buffer_for_read = NULL;
+    long filled_up_buffer_size = 0;
+    char buf[BUF_SIZE];
+    long total_buffer_size_for_write_into_file = BUF_SIZE;
+    long total_buffer_size_for_read_from_file = BUF_SIZE;
+    char *newline_char_ptr;
+    long newline_char_index = 0;
+    long prev_newline_char_index = 0;
+    long end_of_file_index = 0;
+    //char str[INET_ADDRSTRLEN];
+
+    threadParams_t *thread_params = (threadParams_t *)threadp;
+
+    
+    heap_buffer_for_write = (char *)malloc(sizeof(char) * BUF_SIZE);
+    if (heap_buffer_for_write == NULL)
+    {
+        LOG_ERROR("could not malloc");
+        server_socket_state = STATE_EXIT;
+    }
+    server_socket_state = STATE_RECEIVE_FROM_CLIENT;
+
+    
+    while (1)
+    {
+        switch (server_socket_state)
+        {
+        case STATE_RECEIVE_FROM_CLIENT:
+            LOG_DBG("STATE_RECEIVE_FROM_CLIENT\n");
+            do
+            {
+                nreceived = recv(thread_params->sockfd_client, buf, sizeof(buf), 0);
+                if (!nreceived || (strchr(buf, '\n') != NULL))
+                    server_socket_state = STATE_WRITING_FILE;
+
+                if ((total_buffer_size_for_write_into_file - filled_up_buffer_size) < nreceived)
+                {
+                    total_buffer_size_for_write_into_file += nreceived;
+                    heap_buffer_for_write = (char *)realloc(heap_buffer_for_write, sizeof(char) * total_buffer_size_for_write_into_file);
+                }
+                memcpy(&heap_buffer_for_write[filled_up_buffer_size], buf, nreceived);
+                filled_up_buffer_size += nreceived;
+            } while (server_socket_state == STATE_RECEIVE_FROM_CLIENT);
+
+            break;
+
+        case STATE_WRITING_FILE:
+            LOG_DBG("STATE_WRITING_FILE\n");
+            
+            MUTEX_LOCK
+            nwrite = write(thread_params->fd, heap_buffer_for_write, filled_up_buffer_size);
+            if (nwrite < 0)
+            {
+                perror("write failed");
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+            lseek(thread_params->fd, 0, SEEK_SET);
+
+            MUTEX_UNLOCK
+            
+            server_socket_state = STATE_READING_FILE;
+            break;
+
+        case STATE_READING_FILE:
+            LOG_DBG("STATE_READING_FILE\n");
+            heap_buffer_for_read = (char *)malloc(sizeof(char) * (BUF_SIZE + newline_char_index));
+            if (heap_buffer_for_read == NULL)
+            {
+                perror("error malloc");
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+            total_buffer_size_for_read_from_file = BUF_SIZE + newline_char_index;
+            
+            MUTEX_LOCK
+            lseek(thread_params->fd, 0, SEEK_SET);
+            MUTEX_UNLOCK
+            do
+            {
+                MUTEX_LOCK
+                nread = read(thread_params->fd, heap_buffer_for_read, total_buffer_size_for_read_from_file);
+                MUTEX_UNLOCK
+                //LOG_DBG("\tno_of_bytes read expected: %ld, actual:  %ld\t", total_buffer_size_for_read_from_file, nread);
+                if (nread == 0)
+                {
+                    // LOG_DBG("No of chars to be sent over socket : %ld\n", (newline_char_index - prev_newline_char_index));
+                    server_socket_state = STATE_EXIT;
+                }
+                 
+                //LOG_DBG("heap_buffer_for_read: %s\n", heap_buffer_for_read);
+                newline_char_ptr = memchr((heap_buffer_for_read + newline_char_index), '\n', (total_buffer_size_for_read_from_file - newline_char_index));
+                
+                if ((newline_char_ptr != NULL))
+                {
+                    prev_newline_char_index = newline_char_index;
+                    newline_char_index = newline_char_ptr - heap_buffer_for_read + 1;
+                    server_socket_state = STATE_SEND_TO_CLIENT;
+                    // LOG_DBG("-----------Found newline character = %ld\n", newline_char_index);
+                }
+                else
+                {
+                    total_buffer_size_for_read_from_file += BUF_SIZE;
+
+                    heap_buffer_for_read = (char *)realloc(heap_buffer_for_read, sizeof(char) * total_buffer_size_for_read_from_file);
+                    if (heap_buffer_for_read == NULL)
+                    {
+                        LOG_DBG("realloc failed");
+                        server_socket_state = STATE_EXIT;
+                        break;
+                    }
+
+                    // LOG_DBG("-Reallocating size for %ld\ns", total_buffer_size_for_read_from_file);
+                    nread = total_buffer_size_for_read_from_file;
+                    MUTEX_LOCK
+                    lseek(thread_params->fd, 0, SEEK_SET);
+                    MUTEX_UNLOCK
+                }
+               
+
+            } while (server_socket_state == STATE_READING_FILE);
+            
+
+            break;
+
+        case STATE_SEND_TO_CLIENT:
+            LOG_DBG("STATE_SEND_TO_CLIENT\n");
+            //LOG_DBG("\n\nSending : %s\n\n", heap_buffer_for_read + prev_newline_char_index);
+            nsent = send(thread_params->sockfd_client, heap_buffer_for_read + prev_newline_char_index, (newline_char_index - prev_newline_char_index), 0);
+            if (nsent != (newline_char_index - prev_newline_char_index))
+            {
+                perror("error sending");
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+            // LOG_DBG("\tindex of file: %ld\t", newline_char_index);
+
+            MUTEX_LOCK
+            end_of_file_index = lseek(thread_params->fd, 0, SEEK_END);
+            MUTEX_UNLOCK
+            
+            // LOG_DBG("\tend of file: %ld\t", end_of_file_index);
+
+            if (end_of_file_index == newline_char_index)
+            {
+                server_socket_state = STATE_EXIT;
+                close(thread_params->sockfd_client);
+                syslog(LOG_INFO, "Closed connection from %s", thread_params->str);
+                newline_char_index = 0;
+                LOG_DBG("Reached end of read_file\n");
+                free(heap_buffer_for_write);
+            }
+            else
+            {
+                server_socket_state = STATE_READING_FILE;
+                nread = 0;
+            }
+
+            free(heap_buffer_for_read);
+            
+
+            if (signal_exit_request == true)
+                server_socket_state = STATE_EXIT;
+
+            break;
+
+        case STATE_EXIT:
+            //pthread_mutex_unlock(&mutex_socket_communication);
+            thread_params->socket_thread_completion_flag = true;
+            LOG_DBG("STATE_EXIT\n");
+            LOG_DBG("Exiting thread\n");
+            return NULL;
+            //pthread_exit(NULL);
+            break;
+
+        default:
+            break;
+        }
+    }
+    return 0;
+}
+
+/******************************************************************************
+ * Application entry point function 
+ * ****************************************************************************/
+int main(int argc, char *argv[])
+{
+    openlog("aesdsocket", 0, LOG_USER); //setting up explicitly LOG_USER facility (usually its default set to user)
+    pid_t pid;
+    struct sockaddr_in server_addr;
+    //struct sockaddr_in *pV4Addr = (struct sockaddr_in *)&new_addr;
+    //struct in_addr client_addr = pV4Addr->sin_addr;
+    struct sockaddr_in client_addr;// = pV4Addr;
+    timer_t timerid;
+    int sockfd_client;
+    socklen_t addr_size;
+    bool daemon_mode = false;
+    int file_descriptor;
+    bool timer_started = false;
+    int i = 0;
+
+
+    //check command line arguments
+    if (argc > 2)
+    {
+        perror("Invalid arguments");
+        return -1;
+    }
+    else if (argc == 1)
+    {
+        daemon_mode = false;
+    }
+
+    else if (argc == 2)
+    {
+        if (strcmp(argv[1], "-d") == 0)
+            daemon_mode = true;
+    }
+
+    signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
+
+    pthread_mutex_init(&mutex_socket_communication, NULL);
+
+    
+
+    while (1)
+    {
+        switch (server_socket_state)
+        {
+
+        case STATE_INIT:
+            if (remove(FILE) == -1)
+            {
+                perror("Could not delete file");
+            }
+            break;
+
+        case STATE_OPENING_SOCKET:
+            LOG_DBG("STATE_OPENING_SOCKET\n");
+            sockfd_server = socket(PF_INET, SOCK_STREAM, 0);
+            if (sockfd_server < 0)
+            {
+                perror("Error opening a socket");
+                return_status = -1;
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+
+            //set socket options
+            if (setsockopt(sockfd_server, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
+            {
+                perror("error in setsockopt");
+                return_status = -1;
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+
+            server_addr.sin_family = AF_INET;
+            server_addr.sin_addr.s_addr = INADDR_ANY;
+            server_addr.sin_port = htons(PORT);
+
+            server_socket_state = STATE_BINDING;
+            break;
+
+        case STATE_BINDING:
+            //bind socket server
+            LOG_DBG("STATE_BINDING\n");
+            status = bind(sockfd_server, (struct sockaddr *)&server_addr, sizeof(server_addr));
+            if (status < 0)
+            {
+                perror("Error binding");
+                return_status = -1;
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+            if (daemon_mode == true)
+                server_socket_state = STATE_START_DAEMON;
+            else
+                server_socket_state = STATE_LISTENING;
+            break;
+
+        case STATE_START_DAEMON:
+            LOG_DBG("DAEMON\n");
+            signal(SIGCHLD, SIG_IGN);
+            signal(SIGHUP, SIG_IGN);
+            server_socket_state = STATE_LISTENING;
+
+            pid = fork();
+            if (pid == -1)
+                return -1;
+            else if (pid != 0)
+                exit(EXIT_SUCCESS);
+
+            umask(0);
+
+            if (setsid() == -1)
+            {
+                perror("Error starting daemon");
+                return_status = -1;
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+
+            if (chdir("/") == -1)
+            {
+                perror("Error starting daemon");
+                return_status = -1;
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+
+            close(STDIN_FILENO);
+            close(STDOUT_FILENO);
+            close(STDERR_FILENO);
+
+            //redirect files to /dev/null
+            open("/dev/null", O_RDWR);
+            dup(0);
+            dup(0);
+
+            break;
+
+        case STATE_LISTENING:
+            LOG_DBG("STATE_LISTENING\n");
+            //listen for connections
+            status = listen(sockfd_server, 5);
+            if (status < 0)
+            {
+                perror("Listening failed");
+                return_status = -1;
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+            server_socket_state = STATE_OPENING_FILE;
+            break;
+
+        case STATE_OPENING_FILE:
+
+            LOG_DBG("STATE_OPENING_FILE\n");
+            file_descriptor = open("/var/tmp/aesdsocketdata", O_CREAT | O_RDWR | O_TRUNC, 0644);
+            if (file_descriptor == -1)
+            {
+                perror("error creating file");
+                return_status = -1;
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+            
+            LOG_DBG("Creating a head for socket threads linked list\n");
+            SLIST_HEAD(slisthead, slist_data_s) socket_head;
+            SLIST_INIT(&socket_head);
+            server_socket_state = STATE_ACCEPTING;
+            break;
+
+        case STATE_ACCEPTING:
+            LOG_DBG("***************************************************\n");
+            LOG_DBG("STATE_ACCEPTING\n");
+            addr_size = sizeof(client_addr);
+
+            if((daemon_mode == false) || (pid == 0))
+            {
+                if(timer_started == false)
+                {
+                    timer_init(&file_descriptor, &timerid);
+                    timer_started = true;                
+                }
+            }
+
+            //accept socket connections
+            sockfd_client = accept(sockfd_server, (struct sockaddr *)&client_addr, &addr_size);
+            if (sockfd_client < 0)
+            {
+                LOG_ERROR("error accepting connection\n");
+                server_socket_state = STATE_EXIT;
+                break;
+            }
+
+            LOG_DBG("CREATING THREAD\n");
+            //malloc for thread params
+            socket_slist_data_t *socket_server_data_ptr = NULL;
+            socket_server_data_ptr = (socket_slist_data_t *)malloc(sizeof(socket_slist_data_t));
+            socket_server_data_ptr->socket_thread_params.threadIdx = i++;
+            socket_server_data_ptr->socket_thread_params.socket_thread_completion_flag = false;
+            socket_server_data_ptr->socket_thread_params.fd = file_descriptor;
+            socket_server_data_ptr->socket_thread_params.sockfd_client = sockfd_client;
+            
+            pthread_create(&socket_server_data_ptr->socket_thread,                           // pointer to thread descriptor
+                           (void *)0,                                                        // use default attributes
+                           socket_communication,                                             // thread function entry point
+                           (void *)&(socket_server_data_ptr->socket_thread_params) // parameters to pass in
+            );
+
+            SLIST_INSERT_HEAD(&socket_head, socket_server_data_ptr, entries);
+
+            //inet_ntop(AF_INET, &client_addr, socket_server_data_ptr->socket_thread_params.str, INET_ADDRSTRLEN);
+            socket_server_data_ptr->socket_thread_params.str = inet_ntoa(client_addr.sin_addr);
+            
+            syslog(LOG_INFO, "Accepted connection from %s\n", socket_server_data_ptr->socket_thread_params.str);
+            LOG_DBG("Accepted connection from %s\n", socket_server_data_ptr->socket_thread_params.str);
+
+            pthread_join(socket_server_data_ptr->socket_thread, NULL);
+            server_socket_state = STATE_CLOSING;
+            break;
+
+        case STATE_CLOSING:
+            LOG_DBG("STATE_CLOSING\n");
+            SLIST_FOREACH(socket_server_data_ptr, &socket_head, entries)
+            {
+                //LOG_DBG("Total %d threads were created\n", i);
+                if (socket_server_data_ptr->socket_thread_params.socket_thread_completion_flag == true)
+                {
+                    status = close(socket_server_data_ptr->socket_thread_params.sockfd_client);
+                    LOG_DBG("Thread data for thread %d removed\n", socket_server_data_ptr->socket_thread_params.threadIdx);
+                    SLIST_REMOVE(&socket_head, socket_server_data_ptr, slist_data_s, entries);
+                    free(socket_server_data_ptr);
+                    
+                }
+                    
+
+                //remove head
+            }
+            server_socket_state = STATE_ACCEPTING;
+
+            if (signal_exit_request == true)
+                {
+                    status = timer_delete(timerid);
+                    if(status != 0)
+                    {
+                        perror("timer could not be deleted");
+                    }
+                    server_socket_state = STATE_EXIT;
+                }
+
+            break;
+
+        case STATE_EXIT:
+            LOG_DBG("STATE_EXIT\n");
+            close(fd);
+            
+            
+
+            if (remove(FILE) == -1)
+            {
+                perror("Could not delete file");
+            }
+            if(pthread_mutex_destroy(&mutex_socket_communication) != 0)
+                perror("mutex destroy");
+            close(sockfd_server);
+            SLIST_FOREACH(socket_server_data_ptr, &socket_head, entries)
+            {
+                close(socket_server_data_ptr->socket_thread_params.sockfd_client);
+                syslog(LOG_INFO, "Closed connection from %s", socket_server_data_ptr->socket_thread_params.str);
+                free(socket_server_data_ptr);
+            }
+            
+
+            closelog();
+            return -1;
+            //return return_status;
+            break;
+
+        default:
+            break;
+        }
+    }
+}
