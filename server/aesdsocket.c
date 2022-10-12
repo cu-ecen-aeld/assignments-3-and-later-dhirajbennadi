@@ -97,7 +97,7 @@ int mallocCounter3 = 0;
 int main(int argc, char **argv)
 {
 
-    openlog("Server3", LOG_CONS, LOG_USER);
+    openlog("GDBYocto-1", LOG_CONS, LOG_USER);
     syslog(LOG_INFO, "***************************************** \n");
     printf("Pid of Process in Main = %d************\n", getpid());
     syslog(LOG_INFO, "Pid of Process in Main = %d************\n", getpid());
@@ -342,6 +342,7 @@ int main(int argc, char **argv)
 
             SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
             {
+                syslog(LOG_INFO, "Pointer Address = %p\n", socketThreadProcessingStructure);
                 if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
                 {
                     // syslog(LOG_INFO, "Stage 1\n");
