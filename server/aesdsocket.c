@@ -94,16 +94,13 @@ int mallocCounter1 = 0;
 int mallocCounter2 = 0;
 int mallocCounter3 = 0;
 
-
-
-
 int main(int argc, char **argv)
 {
 
     openlog("Server3", LOG_CONS, LOG_USER);
     syslog(LOG_INFO, "***************************************** \n");
     printf("Pid of Process in Main = %d************\n", getpid());
-    syslog(LOG_INFO, "Pid of Process in Main = %d************\n" , getpid());
+    syslog(LOG_INFO, "Pid of Process in Main = %d************\n", getpid());
     syslog(LOG_INFO, "Server Operations\n");
 
     syslog(LOG_INFO, "Registering Callbacks for Signal Handlers\n");
@@ -171,7 +168,7 @@ int main(int argc, char **argv)
             memset(&serverAddress, '\0', sizeof(struct sockaddr_in));
             memset(&clientAddress, '\0', sizeof(struct sockaddr_in));
 
-            //set socket options
+            // set socket options
             if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
             {
                 perror("error in setsockopt");
@@ -187,7 +184,7 @@ int main(int argc, char **argv)
             break;
 
         case BIND_SOCKET:
-        syslog(LOG_INFO,"STATE 2: BIND_SOCKET");
+            syslog(LOG_INFO, "STATE 2: BIND_SOCKET");
             bindSocketRetVal = bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
 
             if (bindSocketRetVal < 0)
@@ -198,7 +195,7 @@ int main(int argc, char **argv)
 
             syslog(LOG_INFO, "[+] Bind Socket Completed\n");
 
-            if(deamonFlag == true)
+            if (deamonFlag == true)
             {
                 state = CHECK_DEAMON;
             }
@@ -207,64 +204,63 @@ int main(int argc, char **argv)
                 state = LISTEN_SOCKET;
             }
 
-            
             break;
 
         case CHECK_DEAMON:
-            syslog(LOG_INFO,"STATE 3: CHECK_DEAMON");
+            syslog(LOG_INFO, "STATE 3: CHECK_DEAMON");
 
-                state = LISTEN_SOCKET;
+            state = LISTEN_SOCKET;
 
-                pid = fork();
+            pid = fork();
 
-                if (pid == -1)
-                {
-                    perror("Forking Failed\n");
-                    return -1;
-                }
-                else if (pid != 0)
-                {
-                    printf("Pid of Parent = %d************\n", getpid());
-                    syslog(LOG_INFO, "Pid of Parent = %d************\n", getpid());
-                    syslog(LOG_INFO, "[+] Parent Process Exiting\n");
-                    exit(EXIT_SUCCESS);
-                }
+            if (pid == -1)
+            {
+                perror("Forking Failed\n");
+                return -1;
+            }
+            else if (pid != 0)
+            {
+                printf("Pid of Parent = %d************\n", getpid());
+                syslog(LOG_INFO, "Pid of Parent = %d************\n", getpid());
+                syslog(LOG_INFO, "[+] Parent Process Exiting\n");
+                exit(EXIT_SUCCESS);
+            }
 
-                if (setsid() == -1)
-                {
-                    perror("Set Sid Failed\n");
-                    return -1;
-                }
-                /* set the working directory to the root directory */
-                if (chdir("/") == -1)
-                {
-                    perror("Changing Working Directory Failed\n");
-                    return -1;
-                }
+            if (setsid() == -1)
+            {
+                perror("Set Sid Failed\n");
+                return -1;
+            }
+            /* set the working directory to the root directory */
+            if (chdir("/") == -1)
+            {
+                perror("Changing Working Directory Failed\n");
+                return -1;
+            }
 
-                close(STDOUT_FILENO);
-                close(STDIN_FILENO);
-                close(STDERR_FILENO);
-                /* close all open files--NR_OPEN is overkill, but works */
-                // for (int i = 0; i < NR_OPEN; i++)
-                // {
-                //     close(i);
-                // }
-                /* redirect fd's 0,1,2 to /dev/null */
-                open("/dev/null", O_RDWR);
-                /* stdin */
-                dup(0);
-                /* stdout */
-                dup(0);
-                /* stderror */
-                /* do its daemon thing... */
-                // return 0;
+            close(STDOUT_FILENO);
+            close(STDIN_FILENO);
+            close(STDERR_FILENO);
+            /* close all open files--NR_OPEN is overkill, but works */
+            // for (int i = 0; i < NR_OPEN; i++)
+            // {
+            //     close(i);
+            // }
+            /* redirect fd's 0,1,2 to /dev/null */
+            open("/dev/null", O_RDWR);
+            /* stdin */
+            dup(0);
+            /* stdout */
+            dup(0);
+            /* stderror */
+            /* do its daemon thing... */
+            // return 0;
 
-                syslog(LOG_INFO, "[+] Daemon Started\n");
+            syslog(LOG_INFO, "[+] Daemon Started\n");
             break;
 
         case LISTEN_SOCKET:
-        syslog(LOG_INFO,"STATE 4: LISTEN_SOCKET");
+            syslog(LOG_INFO, "STATE 4: LISTEN_SOCKET");
             /*Server Socket Listening to Connections*/
             int listenRetVal = listen(serverSocket, 5);
 
@@ -278,14 +274,13 @@ int main(int argc, char **argv)
             break;
 
         case FILE_OPS:
-        syslog(LOG_INFO,"STATE 5: FILE_OPS");
+            syslog(LOG_INFO, "STATE 5: FILE_OPS");
             fd = open("/var/tmp/aesdsocketdata", O_CREAT | O_RDWR | O_TRUNC, 0644);
             if (fd == -1)
             {
                 perror("File Operation Failed\n");
                 state = STATE_SIGNAL_EXIT;
             }
-
 
             SLIST_HEAD(slisthead, slist_data_s)
             socketHead;
@@ -296,15 +291,15 @@ int main(int argc, char **argv)
             break;
 
         case STATE_ACCEPTING:
-            //printf("Pid of Process = %d************\n", getpid());
-            //syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
+            // printf("Pid of Process = %d************\n", getpid());
+            // syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
             syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
             if ((deamonFlag == false) || (pid == 0))
             {
                 if (timerStart == false)
                 {
                     timerInit(&fd, &timeTest);
-                    //timer_init(&fd, &timeTest);
+                    // timer_init(&fd, &timeTest);
                     timerStart = true;
                 }
             }
@@ -319,7 +314,7 @@ int main(int argc, char **argv)
                 break;
             }
 
-            //syslog(LOG_INFO, "[+] Client Socket = %d\n", clientSocket);
+            // syslog(LOG_INFO, "[+] Client Socket = %d\n", clientSocket);
 
             struct slist_data_s *socketThreadProcessingStructure = (struct slist_data_s *)malloc(sizeof(struct slist_data_s));
             pthread_mutex_lock(&mutexSocket);
@@ -343,27 +338,38 @@ int main(int argc, char **argv)
 
         case CLOSE_CLIENT_SOCKET:
 
-            syslog(LOG_INFO,"STATE 12: CLOSE_CLIENT_SOCKET");
+            syslog(LOG_INFO, "STATE 12: CLOSE_CLIENT_SOCKET");
 
             SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
             {
                 if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
                 {
-                    //syslog(LOG_INFO, "Stage 1\n");
+                    // syslog(LOG_INFO, "Stage 1\n");
 
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                    SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                    if(socketThreadProcessingStructure != NULL)
-                    {
-                        free(socketThreadProcessingStructure);
-                        //socketThreadProcessingStructure = NULL;
-                        
-                    }
+                    //SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
+                    // if(socketThreadProcessingStructure != NULL)
+                    // {
+                    //     free(socketThreadProcessingStructure);
+                    //     //socketThreadProcessingStructure = NULL;
 
-                    //syslog(LOG_INFO, "Stage 2\n");
+                    // }
+
+                    // syslog(LOG_INFO, "Stage 2\n");
                 }
-                
             }
+
+            while (!SLIST_EMPTY(&socketHead))
+            {
+                socketThreadProcessingStructure = SLIST_FIRST(&socketHead);
+                //pthread_cancel(listPtr->params.thread);
+                //syslog(LOG_INFO, "Thread is killed:%d\n\r", (int)listPtr->params.thread);
+                SLIST_REMOVE_HEAD(&socketHead, entries);
+                free(socketThreadProcessingStructure);
+                socketThreadProcessingStructure = NULL;
+            }
+
+            
             pthread_mutex_lock(&mutexSocket);
             mallocCounter1--;
             syslog(LOG_INFO, "Malloc Counter 1 : %d\n", mallocCounter1);
@@ -374,9 +380,9 @@ int main(int argc, char **argv)
 
             if (signalExitFlag == true)
             {
-                //timer_delete(timeTest);
+                // timer_delete(timeTest);
                 state = STATE_SIGNAL_EXIT;
-                //break;
+                // break;
             }
             break;
 
@@ -389,7 +395,6 @@ int main(int argc, char **argv)
             {
                 printf("File Closing Failed************\n");
             }
-
 
             if (pthread_mutex_destroy(&mutexSocket) != 0)
             {
@@ -419,20 +424,17 @@ int main(int argc, char **argv)
             //             mallocCounter1--;
             //         //}
             //         //socketThreadProcessingStructure = NULL;
-                    
+
             //     }
             // }
             //     socketThreadProcessingStructure = NULL;
 
-        
-
-            //printf("Exiting Program....\n");
+            // printf("Exiting Program....\n");
 
             syslog(LOG_INFO, "Exiting Program\n");
             syslog(LOG_INFO, "**************************************** \n");
 
             /*Closing Syslog File*/
-            
 
             syslog(LOG_INFO, "Malloc Counter 1 = %d\n", mallocCounter1);
             syslog(LOG_INFO, "Malloc Counter 2 = %d\n", mallocCounter2);
@@ -479,7 +481,6 @@ void sig_handler(int signum)
 
     printf("Signal Handler End\n");
     syslog(LOG_INFO, "Signal Hanlder End\n");
-
 }
 
 /*Thread Function for Sockets*/
@@ -488,7 +489,7 @@ void *socketThreadProcessing(void *ptr)
 {
 
     int totalBuffer = BUFFER_STD_SIZE;
-    int currentSize  = 0;
+    int currentSize = 0;
     char *writebuffer = NULL;
     char *readFromFile = NULL;
     int bytesToBeWritten = 0;
@@ -500,18 +501,18 @@ void *socketThreadProcessing(void *ptr)
     /*Thread Parameters*/
     struct threadSocketSt *threadParam = (struct threadSocketSt *)ptr;
 
-    writebuffer = (char*)malloc(sizeof(char) * BUFFER_STD_SIZE);
+    writebuffer = (char *)malloc(sizeof(char) * BUFFER_STD_SIZE);
     if (writebuffer == NULL)
     {
         perror("[-] Malloc for Write Buffer Failed\n");
         state = THREAD_EXIT;
     }
 
-                pthread_mutex_lock(&mutexSocket);
-            mallocCounter2++;
-            syslog(LOG_INFO, "Malloc Counter 2 : %d\n", mallocCounter2);
-            pthread_mutex_unlock(&mutexSocket);
-    //mallocCounter2++;
+    pthread_mutex_lock(&mutexSocket);
+    mallocCounter2++;
+    syslog(LOG_INFO, "Malloc Counter 2 : %d\n", mallocCounter2);
+    pthread_mutex_unlock(&mutexSocket);
+    // mallocCounter2++;
 
     state = RECV_CLIENT;
 
@@ -521,7 +522,7 @@ void *socketThreadProcessing(void *ptr)
         switch (state)
         {
         case RECV_CLIENT:
-        syslog(LOG_INFO , "STATE 7: RECV_CLIENT\n");
+            syslog(LOG_INFO, "STATE 7: RECV_CLIENT\n");
             bool exitLoop = true;
 
             while (exitLoop)
@@ -548,7 +549,7 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case WRITE_DATA_TO_FILE:
-        syslog(LOG_INFO , "STATE 8: WRITE_DATA_TO_FILE\n");
+            syslog(LOG_INFO, "STATE 8: WRITE_DATA_TO_FILE\n");
 
             pthread_mutex_lock(&mutexSocket);
             bytesToBeWritten = write(threadParam->fileDescriptor, writebuffer, currentSize);
@@ -559,7 +560,7 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case READ_DATA_FROM_FILE:
-        syslog(LOG_INFO , "STATE 9: READ_DATA_FROM_FILE\n");
+            syslog(LOG_INFO, "STATE 9: READ_DATA_FROM_FILE\n");
             pthread_mutex_lock(&mutexSocket);
             int lastCharOfFile = lseek(threadParam->fileDescriptor, 0, SEEK_END);
             pthread_mutex_unlock(&mutexSocket);
@@ -573,7 +574,6 @@ void *socketThreadProcessing(void *ptr)
                 perror("[-] Malloc Failed\n");
                 state = THREAD_EXIT;
                 break;
-
             }
 
             pthread_mutex_lock(&mutexSocket);
@@ -592,7 +592,7 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case SEND_CLIENT:
-        syslog(LOG_INFO , "STATE 10: SEND_CLIENT\n");
+            syslog(LOG_INFO, "STATE 10: SEND_CLIENT\n");
             int clientSendRetVal = send(threadParam->clientSocket, readFromFile, bytesToBeRead, 0);
 
             // syslog(LOG_INFO, "Client Send Return Value = %d\n", clientSendRetVal);
@@ -601,7 +601,7 @@ void *socketThreadProcessing(void *ptr)
             {
                 perror("[-] Client Sending Failed\n");
                 state = THREAD_EXIT;
-                //break;
+                // break;
             }
 
             free(readFromFile);
@@ -616,13 +616,12 @@ void *socketThreadProcessing(void *ptr)
             syslog(LOG_INFO, "Malloc Counter 2 : %d\n", mallocCounter2);
             pthread_mutex_unlock(&mutexSocket);
 
-
             if (close(threadParam->clientSocket) != 0)
             {
                 printf("Client Socket Closing Failed\n");
             }
 
-            state = THREAD_EXIT; 
+            state = THREAD_EXIT;
 
             if (signalExitFlag == true)
             {
@@ -631,7 +630,7 @@ void *socketThreadProcessing(void *ptr)
             break;
 
         case THREAD_EXIT:
-        syslog(LOG_INFO , "STATE 11: THREAD_EXIT\n");
+            syslog(LOG_INFO, "STATE 11: THREAD_EXIT\n");
             threadParam->threadCompletionStatus = true;
             return NULL;
             break;
@@ -640,8 +639,6 @@ void *socketThreadProcessing(void *ptr)
             break;
         }
     }
-
-
 }
 
 /**********************************/
@@ -699,4 +696,3 @@ void timerInit(int *fd, timer_t *timerId)
         perror("timer_settime");
     }
 }
-
