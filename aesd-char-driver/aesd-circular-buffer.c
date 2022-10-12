@@ -16,6 +16,10 @@
 
 #include "aesd-circular-buffer.h"
 
+static int write = 0;
+static int read = 0;
+static int length = 0;
+
 /**
  * @param buffer the buffer to search for corresponding offset.  Any necessary locking must be performed by caller.
  * @param char_offset the position to search for in the buffer list, describing the zero referenced
@@ -32,7 +36,38 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
     /**
     * TODO: implement per description
     */
-    return NULL;
+    size_t totalLengthofChars = 0;
+    struct aesd_buffer_entry *retVal = NULL;
+    for (int i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
+    {
+        totalLengthofChars += buffer->entry[i].size;
+    }
+
+    size_t temp = char_offset;
+    int i = 0;
+    int counter = 0;
+
+    if (char_offset < totalLengthofChars)
+    {
+        for (i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
+        {
+            temp -= buffer->entry[i].size;
+            counter += buffer->entry[i].size;
+            if (temp <= 0)
+            {
+                break;
+            }
+        }
+
+        retVal = buffer->entry[i].buffptr;
+        *entry_offset_byte_rtn = temp * -1;
+    }
+    else
+    {
+        retVal = NULL;
+    }
+
+    return retVal;
 }
 
 /**
@@ -47,6 +82,20 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
     /**
     * TODO: implement per description
     */
+
+   if(isFull())
+   {
+    buffer->entry[write].buffptr = add_entry->buffptr;
+    buffer->entry[write].size = add_entry->size;
+    write = write + 1 % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+    read = read + 1 % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+   }
+   else
+   {
+    buffer->entry[write].buffptr = add_entry->buffptr;
+    buffer->entry[write].size = add_entry->size;
+    write = write + 1 % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+   }
 }
 
 /**
@@ -55,4 +104,15 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
 void aesd_circular_buffer_init(struct aesd_circular_buffer *buffer)
 {
     memset(buffer,0,sizeof(struct aesd_circular_buffer));
+}
+
+
+bool isFull()
+{
+    if(length == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+    {
+        return true;
+    }
+
+    return false;
 }
