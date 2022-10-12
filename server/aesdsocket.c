@@ -401,22 +401,22 @@ int main(int argc, char **argv)
                 printf("Socket Closing Failed************\n");
             }
 
-            if(mallocCounter1 > 0)
-            {
-                SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
-                {
-                    close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                    SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                    // if(socketThreadProcessingStructure != NULL)
-                    // {
-                        free(socketThreadProcessingStructure);
-                        mallocCounter1--;
-                    //}
-                    //socketThreadProcessingStructure = NULL;
+            // if(mallocCounter1 > 0)
+            // {
+            //     SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
+            //     {
+            //         close(socketThreadProcessingStructure->socketParamters.clientSocket);
+            //         SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
+            //         // if(socketThreadProcessingStructure != NULL)
+            //         // {
+            //             free(socketThreadProcessingStructure);
+            //             mallocCounter1--;
+            //         //}
+            //         //socketThreadProcessingStructure = NULL;
                     
-                }
-            }
-                socketThreadProcessingStructure = NULL;
+            //     }
+            // }
+            //     socketThreadProcessingStructure = NULL;
 
         
 
@@ -591,9 +591,10 @@ void *socketThreadProcessing(void *ptr)
             }
 
             free(readFromFile);
-            mallocCounter2--;
-            free(writebuffer);
             mallocCounter3--;
+            free(writebuffer);
+            mallocCounter2--;
+
 
             if (close(threadParam->clientSocket) != 0)
             {
