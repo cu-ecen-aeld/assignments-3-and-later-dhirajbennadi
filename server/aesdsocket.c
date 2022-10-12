@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 
     openlog("GDBYocto-1", LOG_CONS, LOG_USER);
     syslog(LOG_INFO, "***************************************** \n");
-    printf("Pid of Process in Main = %d************\n", getpid());
+    //printf("Pid of Process in Main = %d************\n", getpid());
     syslog(LOG_INFO, "Pid of Process in Main = %d************\n", getpid());
     syslog(LOG_INFO, "Server Operations\n");
 
@@ -121,10 +121,10 @@ int main(int argc, char **argv)
 
     if (argc == 2)
     {
-        printf("Number of Arguments = %d*******************\n", argc);
+        //printf("Number of Arguments = %d*******************\n", argc);
         for (int i = 0; i < argc; i++)
         {
-            printf("%s\n", argv[i]);
+            //printf("%s\n", argv[i]);
         }
         if (!strcmp(argv[1], "-d"))
         {
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
             }
             else if (pid != 0)
             {
-                printf("Pid of Parent = %d************\n", getpid());
+                //printf("Pid of Parent = %d************\n", getpid());
                 syslog(LOG_INFO, "Pid of Parent = %d************\n", getpid());
                 syslog(LOG_INFO, "[+] Parent Process Exiting\n");
                 exit(EXIT_SUCCESS);
@@ -305,7 +305,6 @@ int main(int argc, char **argv)
             // syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
             syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
 
-
             addr_size = sizeof(clientAddress);
             clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &addr_size);
 
@@ -314,6 +313,17 @@ int main(int argc, char **argv)
                 perror("[-] Accept Failed\n");
                 state = STATE_SIGNAL_EXIT;
                 break;
+            }
+
+            char client_ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(clientAddress.sin_addr), client_ip, INET_ADDRSTRLEN);
+            syslog(LOG_INFO, "Accepted connection from %s \n\r", client_ip);
+
+            if (signalExitFlag == true)
+            {
+                // timer_delete(timeTest);
+                state = STATE_SIGNAL_EXIT;
+                // break;
             }
 
             // syslog(LOG_INFO, "[+] Client Socket = %d\n", clientSocket);
@@ -338,20 +348,22 @@ int main(int argc, char **argv)
             {
                 if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
                 {
-                    pthread_join(socketThreadProcessingStructure->socketThreadInstance,  NULL);
+                    pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
 
                     shutdown(socketThreadProcessingStructure->socketParamters.clientSocket, SHUT_RDWR);
 
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
+
+                    syslog(LOG_INFO, "Closed connection from %s \n\r", client_ip);
                 }
             }
 
-        //     //pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
+            //     //pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
 
-        //     state = CLOSE_CLIENT_SOCKET;
-        //     break;
+            //     state = CLOSE_CLIENT_SOCKET;
+            //     break;
 
-        // case CLOSE_CLIENT_SOCKET:
+            // case CLOSE_CLIENT_SOCKET:
 
             // syslog(LOG_INFO, "STATE 12: CLOSE_CLIENT_SOCKET");
 
@@ -375,16 +387,9 @@ int main(int argc, char **argv)
             //     }
             // }
 
-
-
             state = STATE_ACCEPTING;
 
-            if (signalExitFlag == true)
-            {
-                // timer_delete(timeTest);
-                state = STATE_SIGNAL_EXIT;
-                // break;
-            }
+
             break;
 
         case STATE_SIGNAL_EXIT:
@@ -394,7 +399,7 @@ int main(int argc, char **argv)
             /*File Descriptor for the /var/tmp/aesdsocketdata*/
             if (close(fd) != 0)
             {
-                printf("File Closing Failed************\n");
+                perror("File Closing Failed************\n");
             }
 
             if (pthread_mutex_destroy(&mutexSocket) != 0)
@@ -410,20 +415,19 @@ int main(int argc, char **argv)
             /*Server Socket*/
             if (close(serverSocket) != 0)
             {
-                printf("Socket Closing Failed************\n");
+                perror("Socket Closing Failed************\n");
             }
 
             while (!SLIST_EMPTY(&socketHead))
             {
                 socketThreadProcessingStructure = SLIST_FIRST(&socketHead);
-                //pthread_cancel(listPtr->params.thread);
-                //syslog(LOG_INFO, "Thread is killed:%d\n\r", (int)listPtr->params.thread);
+                // pthread_cancel(listPtr->params.thread);
+                // syslog(LOG_INFO, "Thread is killed:%d\n\r", (int)listPtr->params.thread);
                 SLIST_REMOVE_HEAD(&socketHead, entries);
                 free(socketThreadProcessingStructure);
                 socketThreadProcessingStructure = NULL;
             }
 
-            
             pthread_mutex_lock(&mutexSocket);
             mallocCounter1--;
             syslog(LOG_INFO, "Malloc Counter 1 : %d\n", mallocCounter1);
@@ -475,7 +479,7 @@ int main(int argc, char **argv)
 
 void sig_handler(int signum)
 {
-    printf("Signal Handler Start\n");
+    //printf("Signal Handler Start\n");
     syslog(LOG_INFO, "Signal Hanlder Start\n");
 
     if (signum == SIGINT)
@@ -484,7 +488,8 @@ void sig_handler(int signum)
     }
     else if (signum == SIGTERM)
     {
-        printf("Caught signal = %d, exiting\n", SIGTERM);
+        syslog(LOG_INFO, "Caught signal = %d, exiting\n", SIGTERM);
+        //printf("Caught signal = %d, exiting\n", SIGTERM);
     }
 
     /*TODO: Include a flag and handle the flag exit conditions in main*/
@@ -497,7 +502,7 @@ void sig_handler(int signum)
 
     signalExitFlag = true;
 
-    printf("Signal Handler End\n");
+    //printf("Signal Handler End\n");
     syslog(LOG_INFO, "Signal Hanlder End\n");
 }
 
@@ -583,7 +588,7 @@ void *socketThreadProcessing(void *ptr)
             int lastCharOfFile = lseek(threadParam->fileDescriptor, 0, SEEK_END);
             pthread_mutex_unlock(&mutexSocket);
 
-            printf("Last Char of the File = %d*****************\n", lastCharOfFile);
+            //printf("Last Char of the File = %d*****************\n", lastCharOfFile);
 
             readFromFile = (char *)malloc(sizeof(char) * lastCharOfFile);
 
@@ -604,7 +609,7 @@ void *socketThreadProcessing(void *ptr)
             bytesToBeRead = read(threadParam->fileDescriptor, readFromFile, lastCharOfFile);
             pthread_mutex_unlock(&mutexSocket);
 
-            printf("Bytes Reading Using Seek End = %d\n", bytesToBeRead);
+            //printf("Bytes Reading Using Seek End = %d\n", bytesToBeRead);
 
             state = SEND_CLIENT;
             break;
@@ -636,7 +641,7 @@ void *socketThreadProcessing(void *ptr)
 
             if (close(threadParam->clientSocket) != 0)
             {
-                printf("Client Socket Closing Failed\n");
+                perror("Client Socket Closing Failed\n");
             }
 
             state = THREAD_EXIT;
