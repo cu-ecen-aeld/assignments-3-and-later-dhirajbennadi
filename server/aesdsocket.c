@@ -331,7 +331,7 @@ int main(int argc, char **argv)
 
             SLIST_INSERT_HEAD(&socketHead, socketThreadProcessingStructure, entries);
 
-            pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
+            //pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
 
             state = CLOSE_CLIENT_SOCKET;
             break;
@@ -345,7 +345,7 @@ int main(int argc, char **argv)
                 if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
                 {
                     // syslog(LOG_INFO, "Stage 1\n");
-
+                    pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
                     // SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
                     // if(socketThreadProcessingStructure != NULL)
@@ -359,22 +359,7 @@ int main(int argc, char **argv)
                 }
             }
 
-            while (!SLIST_EMPTY(&socketHead))
-            {
-                socketThreadProcessingStructure = SLIST_FIRST(&socketHead);
-                //pthread_cancel(listPtr->params.thread);
-                //syslog(LOG_INFO, "Thread is killed:%d\n\r", (int)listPtr->params.thread);
-                SLIST_REMOVE_HEAD(&socketHead, entries);
-                free(socketThreadProcessingStructure);
-                socketThreadProcessingStructure = NULL;
-            }
 
-            
-            pthread_mutex_lock(&mutexSocket);
-            mallocCounter1--;
-            syslog(LOG_INFO, "Malloc Counter 1 : %d\n", mallocCounter1);
-            pthread_mutex_unlock(&mutexSocket);
-            socketThreadProcessingStructure = NULL;
 
             state = STATE_ACCEPTING;
 
@@ -411,6 +396,23 @@ int main(int argc, char **argv)
             {
                 printf("Socket Closing Failed************\n");
             }
+
+            while (!SLIST_EMPTY(&socketHead))
+            {
+                socketThreadProcessingStructure = SLIST_FIRST(&socketHead);
+                //pthread_cancel(listPtr->params.thread);
+                //syslog(LOG_INFO, "Thread is killed:%d\n\r", (int)listPtr->params.thread);
+                SLIST_REMOVE_HEAD(&socketHead, entries);
+                free(socketThreadProcessingStructure);
+                socketThreadProcessingStructure = NULL;
+            }
+
+            
+            pthread_mutex_lock(&mutexSocket);
+            mallocCounter1--;
+            syslog(LOG_INFO, "Malloc Counter 1 : %d\n", mallocCounter1);
+            pthread_mutex_unlock(&mutexSocket);
+            socketThreadProcessingStructure = NULL;
 
             // if(mallocCounter1 > 0)
             // {
