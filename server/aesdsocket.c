@@ -296,8 +296,8 @@ int main(int argc, char **argv)
             break;
 
         case STATE_ACCEPTING:
-            printf("Pid of Process = %d************\n", getpid());
-            syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
+            //printf("Pid of Process = %d************\n", getpid());
+            //syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
             syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
             if ((deamonFlag == false) || (pid == 0))
             {
@@ -322,7 +322,10 @@ int main(int argc, char **argv)
             //syslog(LOG_INFO, "[+] Client Socket = %d\n", clientSocket);
 
             struct slist_data_s *socketThreadProcessingStructure = (struct slist_data_s *)malloc(sizeof(struct slist_data_s));
+            pthread_mutex_lock(&mutexSocket);
             mallocCounter1++;
+            syslog(LOG_INFO, "Malloc Counter 1 : %d\n", mallocCounter1);
+            pthread_mutex_unlock(&mutexSocket);
 
             socketThreadProcessingStructure->socketParamters.fileDescriptor = fd;
             socketThreadProcessingStructure->socketParamters.clientSocket = clientSocket;
@@ -361,7 +364,10 @@ int main(int argc, char **argv)
                 }
                 
             }
+            pthread_mutex_lock(&mutexSocket);
             mallocCounter1--;
+            syslog(LOG_INFO, "Malloc Counter 1 : %d\n", mallocCounter1);
+            pthread_mutex_unlock(&mutexSocket);
             socketThreadProcessingStructure = NULL;
 
             state = STATE_ACCEPTING;
@@ -500,7 +506,12 @@ void *socketThreadProcessing(void *ptr)
         perror("[-] Malloc for Write Buffer Failed\n");
         state = THREAD_EXIT;
     }
-    mallocCounter2++;
+
+                pthread_mutex_lock(&mutexSocket);
+            mallocCounter2++;
+            syslog(LOG_INFO, "Malloc Counter 2 : %d\n", mallocCounter2);
+            pthread_mutex_unlock(&mutexSocket);
+    //mallocCounter2++;
 
     state = RECV_CLIENT;
 
@@ -565,7 +576,10 @@ void *socketThreadProcessing(void *ptr)
 
             }
 
+            pthread_mutex_lock(&mutexSocket);
             mallocCounter3++;
+            syslog(LOG_INFO, "Malloc Counter 3 : %d\n", mallocCounter3);
+            pthread_mutex_unlock(&mutexSocket);
 
             pthread_mutex_lock(&mutexSocket);
             lseek(threadParam->fileDescriptor, 0, SEEK_SET);
@@ -591,9 +605,16 @@ void *socketThreadProcessing(void *ptr)
             }
 
             free(readFromFile);
+            pthread_mutex_lock(&mutexSocket);
             mallocCounter3--;
+            syslog(LOG_INFO, "Malloc Counter 3 : %d\n", mallocCounter3);
+            pthread_mutex_unlock(&mutexSocket);
+
             free(writebuffer);
+            pthread_mutex_lock(&mutexSocket);
             mallocCounter2--;
+            syslog(LOG_INFO, "Malloc Counter 2 : %d\n", mallocCounter2);
+            pthread_mutex_unlock(&mutexSocket);
 
 
             if (close(threadParam->clientSocket) != 0)
