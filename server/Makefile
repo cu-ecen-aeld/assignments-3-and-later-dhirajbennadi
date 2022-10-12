@@ -1,18 +1,22 @@
+# CC=$(CROSS_COMPILE)gcc
+# CFLAGS=-Wall
+
+# all: aesdsocket
+# aesdsocket: aesdsocket.o
+# aesdsocket.o: aesdsocket.c queue.h
+
+# clean:
+# 	rm -f aesdsocket aesdsocket.o
+# run: aesdsocket
+# 	./aesdsocket
+
+
 INCLUDE_DIRS = 
-LIB_DIRS = 
-#CC=aarch64-none-linux-gnu-gcc
-#CC=gcc
-
-# ifeq ($(TARGET),CROSS_COMPILE)
-#         CC = aarch64-none-linux-gnu-gcc
-# else
-#         CC = gcc
-# endif
-
+LIB_DIRS = -lrt -pthread
 CC=$(CROSS_COMPILE)gcc
 
 
-HFILES= 
+HFILES= queue.h
 CFILES= aesdsocket.c
 
 SRCS= ${HFILES} ${CFILES}
@@ -23,7 +27,7 @@ clean:
 	-rm -rf aesdsocket aesdsocket.o
 
 aesdsocket: aesdsocket.o
-	$(CC) -o $@ $< -g
+	$(CC) -o $@ $< $(LIB_DIRS)
 
-.c.o:
-	$(CC) -c $<
+.c.o: ${SRCS}
+	$(CC) -c -g $^
