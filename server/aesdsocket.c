@@ -347,27 +347,27 @@ int main(int argc, char **argv)
                     // syslog(LOG_INFO, "Stage 1\n");
 
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                    SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                    if(socketThreadProcessingStructure != NULL)
-                    {
-                        free(socketThreadProcessingStructure);
-                        //socketThreadProcessingStructure = NULL;
+                    // SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
+                    // if(socketThreadProcessingStructure != NULL)
+                    // {
+                    //     free(socketThreadProcessingStructure);
+                    //     //socketThreadProcessingStructure = NULL;
 
-                    }
+                    // }
 
                     // syslog(LOG_INFO, "Stage 2\n");
                 }
             }
 
-            // while (!SLIST_EMPTY(&socketHead))
-            // {
-            //     socketThreadProcessingStructure = SLIST_FIRST(&socketHead);
-            //     //pthread_cancel(listPtr->params.thread);
-            //     //syslog(LOG_INFO, "Thread is killed:%d\n\r", (int)listPtr->params.thread);
-            //     SLIST_REMOVE_HEAD(&socketHead, entries);
-            //     free(socketThreadProcessingStructure);
-            //     socketThreadProcessingStructure = NULL;
-            // }
+            while (!SLIST_EMPTY(&socketHead))
+            {
+                socketThreadProcessingStructure = SLIST_FIRST(&socketHead);
+                //pthread_cancel(listPtr->params.thread);
+                //syslog(LOG_INFO, "Thread is killed:%d\n\r", (int)listPtr->params.thread);
+                SLIST_REMOVE_HEAD(&socketHead, entries);
+                free(socketThreadProcessingStructure);
+                socketThreadProcessingStructure = NULL;
+            }
 
             
             pthread_mutex_lock(&mutexSocket);
