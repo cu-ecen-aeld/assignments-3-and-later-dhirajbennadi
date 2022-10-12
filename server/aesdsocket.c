@@ -100,7 +100,7 @@ int mallocCounter3 = 0;
 int main(int argc, char **argv)
 {
 
-    openlog("NeedSomeLuck", LOG_CONS, LOG_USER);
+    openlog("Server3", LOG_CONS, LOG_USER);
     syslog(LOG_INFO, "***************************************** \n");
     printf("Pid of Process in Main = %d************\n", getpid());
     syslog(LOG_INFO, "Pid of Process in Main = %d************\n" , getpid());
@@ -322,6 +322,7 @@ int main(int argc, char **argv)
             //syslog(LOG_INFO, "[+] Client Socket = %d\n", clientSocket);
 
             struct slist_data_s *socketThreadProcessingStructure = (struct slist_data_s *)malloc(sizeof(struct slist_data_s));
+            mallocCounter1++;
 
             socketThreadProcessingStructure->socketParamters.fileDescriptor = fd;
             socketThreadProcessingStructure->socketParamters.clientSocket = clientSocket;
@@ -353,12 +354,14 @@ int main(int argc, char **argv)
                     {
                         free(socketThreadProcessingStructure);
                         //socketThreadProcessingStructure = NULL;
-                        mallocCounter1--;
+                        
                     }
 
                     //syslog(LOG_INFO, "Stage 2\n");
                 }
+                
             }
+            mallocCounter1--;
             socketThreadProcessingStructure = NULL;
 
             state = STATE_ACCEPTING;
@@ -398,7 +401,7 @@ int main(int argc, char **argv)
                 printf("Socket Closing Failed************\n");
             }
 
-            if(socketThreadProcessingStructure != NULL)
+            if(mallocCounter1 > 0)
             {
                 SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
                 {
