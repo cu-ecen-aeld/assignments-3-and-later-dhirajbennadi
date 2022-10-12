@@ -27,7 +27,7 @@ clean:
 	-rm -rf aesdsocket aesdsocket.o
 
 aesdsocket: aesdsocket.o
-	$(CC) -o $@ $< -g $(LIB_DIRS)
+	$(CC) -o $@ $< $(LIB_DIRS)
 
 .c.o: ${SRCS}
-	$(CC) -c $^
+	$(CC) -c -g $^

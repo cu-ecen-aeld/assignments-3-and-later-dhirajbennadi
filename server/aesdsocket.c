@@ -100,7 +100,7 @@ int mallocCounter3 = 0;
 int main(int argc, char **argv)
 {
 
-    openlog("ServersOpsFinale-6", LOG_CONS, LOG_USER);
+    openlog("NeedSomeLuck", LOG_CONS, LOG_USER);
     syslog(LOG_INFO, "***************************************** \n");
     printf("Pid of Process in Main = %d************\n", getpid());
     syslog(LOG_INFO, "Pid of Process in Main = %d************\n" , getpid());
@@ -345,17 +345,21 @@ int main(int argc, char **argv)
             {
                 if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
                 {
+                    //syslog(LOG_INFO, "Stage 1\n");
 
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
                     SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
                     if(socketThreadProcessingStructure != NULL)
                     {
                         free(socketThreadProcessingStructure);
-                        socketThreadProcessingStructure = NULL;
+                        //socketThreadProcessingStructure = NULL;
                         mallocCounter1--;
                     }
+
+                    //syslog(LOG_INFO, "Stage 2\n");
                 }
             }
+            socketThreadProcessingStructure = NULL;
 
             state = STATE_ACCEPTING;
 
@@ -394,29 +398,38 @@ int main(int argc, char **argv)
                 printf("Socket Closing Failed************\n");
             }
 
-            SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
+            if(socketThreadProcessingStructure != NULL)
             {
-                close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                if (socketThreadProcessingStructure != NULL)
+                SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
                 {
-                    free(socketThreadProcessingStructure);
-                    socketThreadProcessingStructure = NULL;
-                    mallocCounter1--;
+                    close(socketThreadProcessingStructure->socketParamters.clientSocket);
+                    SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
+                    // if(socketThreadProcessingStructure != NULL)
+                    // {
+                        free(socketThreadProcessingStructure);
+                        mallocCounter1--;
+                    //}
+                    //socketThreadProcessingStructure = NULL;
+                    
                 }
             }
+                socketThreadProcessingStructure = NULL;
 
-            printf("Exiting Program....\n");
+        
+
+            //printf("Exiting Program....\n");
 
             syslog(LOG_INFO, "Exiting Program\n");
             syslog(LOG_INFO, "**************************************** \n");
 
             /*Closing Syslog File*/
-            closelog();
+            
 
-            printf("Malloc Counter 1 = %d\n", mallocCounter1);
-            printf("Malloc Counter 2 = %d\n", mallocCounter2);
-            printf("Malloc Counter 3 = %d\n", mallocCounter3);
+            syslog(LOG_INFO, "Malloc Counter 1 = %d\n", mallocCounter1);
+            syslog(LOG_INFO, "Malloc Counter 2 = %d\n", mallocCounter2);
+            syslog(LOG_INFO, "Malloc Counter 3 = %d\n", mallocCounter3);
+
+            closelog();
 
             /*Hard Exit with -1 as return value*/
             return -1;
