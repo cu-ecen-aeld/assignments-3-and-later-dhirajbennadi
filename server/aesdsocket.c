@@ -287,13 +287,6 @@ int main(int argc, char **argv)
 
             SLIST_INIT(&socketHead);
 
-            state = STATE_ACCEPTING;
-            break;
-
-        case STATE_ACCEPTING:
-            // printf("Pid of Process = %d************\n", getpid());
-            // syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
-            syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
             if ((deamonFlag == false) || (pid == 0))
             {
                 if (timerStart == false)
@@ -303,6 +296,15 @@ int main(int argc, char **argv)
                     timerStart = true;
                 }
             }
+
+            state = STATE_ACCEPTING;
+            break;
+
+        case STATE_ACCEPTING:
+            // printf("Pid of Process = %d************\n", getpid());
+            // syslog(LOG_INFO, "Pid of Process = %d************\n", getpid());
+            syslog(LOG_INFO, "STATE 6: STATE_ACCEPTING");
+
 
             addr_size = sizeof(clientAddress);
             clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &addr_size);
@@ -317,6 +319,9 @@ int main(int argc, char **argv)
             // syslog(LOG_INFO, "[+] Client Socket = %d\n", clientSocket);
 
             struct slist_data_s *socketThreadProcessingStructure = (struct slist_data_s *)malloc(sizeof(struct slist_data_s));
+
+            SLIST_INSERT_HEAD(&socketHead, socketThreadProcessingStructure, entries);
+
             pthread_mutex_lock(&mutexSocket);
             mallocCounter1++;
             syslog(LOG_INFO, "Malloc Counter 1 : %d\n", mallocCounter1);
@@ -329,36 +334,46 @@ int main(int argc, char **argv)
             pthread_create(&socketThreadProcessingStructure->socketThreadInstance, NULL, socketThreadProcessing,
                            (void *)&socketThreadProcessingStructure->socketParamters);
 
-            SLIST_INSERT_HEAD(&socketHead, socketThreadProcessingStructure, entries);
-
-            //pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
-
-            state = CLOSE_CLIENT_SOCKET;
-            break;
-
-        case CLOSE_CLIENT_SOCKET:
-
-            syslog(LOG_INFO, "STATE 12: CLOSE_CLIENT_SOCKET");
-
             SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
             {
-                syslog(LOG_INFO, "Pointer Address = %p\n", socketThreadProcessingStructure);
                 if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
                 {
-                    // syslog(LOG_INFO, "Stage 1\n");
-                    pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
+                    pthread_join(socketThreadProcessingStructure->socketThreadInstance,  NULL);
+
+                    shutdown(socketThreadProcessingStructure->socketParamters.clientSocket, SHUT_RDWR);
+
                     close(socketThreadProcessingStructure->socketParamters.clientSocket);
-                    // SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
-                    // if(socketThreadProcessingStructure != NULL)
-                    // {
-                    //     free(socketThreadProcessingStructure);
-                    //     //socketThreadProcessingStructure = NULL;
-
-                    // }
-
-                    // syslog(LOG_INFO, "Stage 2\n");
                 }
             }
+
+        //     //pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
+
+        //     state = CLOSE_CLIENT_SOCKET;
+        //     break;
+
+        // case CLOSE_CLIENT_SOCKET:
+
+            // syslog(LOG_INFO, "STATE 12: CLOSE_CLIENT_SOCKET");
+
+            // SLIST_FOREACH(socketThreadProcessingStructure, &socketHead, entries)
+            // {
+            //     syslog(LOG_INFO, "Pointer Address = %p\n", socketThreadProcessingStructure);
+            //     if (socketThreadProcessingStructure->socketParamters.threadCompletionStatus == true)
+            //     {
+            //         // syslog(LOG_INFO, "Stage 1\n");
+            //         pthread_join(socketThreadProcessingStructure->socketThreadInstance, NULL);
+            //         close(socketThreadProcessingStructure->socketParamters.clientSocket);
+            //         // SLIST_REMOVE(&socketHead, socketThreadProcessingStructure, slist_data_s, entries);
+            //         // if(socketThreadProcessingStructure != NULL)
+            //         // {
+            //         //     free(socketThreadProcessingStructure);
+            //         //     //socketThreadProcessingStructure = NULL;
+
+            //         // }
+
+            //         // syslog(LOG_INFO, "Stage 2\n");
+            //     }
+            // }
 
 
 
