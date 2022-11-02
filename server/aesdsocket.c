@@ -572,6 +572,7 @@ int main(int argc, char **argv)
         switch (state)
         {
         case STATE_ACCEPTING:
+        {
             struct sockaddr_in client_addr;
             socklen_t client_addr_size = sizeof(client_addr);
 
@@ -621,6 +622,7 @@ int main(int argc, char **argv)
 
             state = STATE_ACCEPTING;
             break;
+        }
 
         case THREAD_EXIT:
             while (!SLIST_EMPTY(&head))
