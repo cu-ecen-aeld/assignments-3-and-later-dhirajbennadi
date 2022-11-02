@@ -21,8 +21,15 @@
 #include <linux/uaccess.h> 
 #include <linux/string.h>
 #include "aesdchar.h"
+
+/*A9*/
+#include "aesd_ioctl.h"
+
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
+
+static long aesd_adjust_file_offset(struct file *filp, unsigned int write_cmd,
+unsigned int write_cmd_offset);
 
 MODULE_AUTHOR("Dhiraj Bennadi"); /** TODO: fill in your name **/
 MODULE_LICENSE("Dual BSD/GPL");
@@ -162,11 +169,58 @@ out:
 	mutex_unlock(&device->lock);	
 	return retval;
 }
+
+
+
+loff_t aesd_llseek(struct file *filp, loff_t offset, int whence)
+{
+	loff_t ret_val;
+	struct aesd_dev *dev = filp->private_data;
+	loff_t size = dev->device_buffer.filledBufferSize;
+	//include lock
+	if(mutex_lock_interruptible(&dev->lock))
+		return -ERESTARTSYS; 
+	ret_val = fixed_size_llseek(filp, offset, whence, size);
+	mutex_unlock(&dev->lock);
+	//remove lock
+	return ret_val;
+}
+
+
+long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	long ret_val = 0;
+	struct aesd_seekto seekto;
+
+	switch(cmd)
+	{
+		case AESDCHAR_IOCSEEKTO:
+			{
+				if(copy_from_user(&seekto,(const void __user *)arg, sizeof(seekto))!=0)
+				{
+					ret_val = -EFAULT;
+				}
+				else
+				{
+					ret_val = aesd_adjust_file_offset(filp, seekto.write_cmd, seekto.write_cmd_offset);
+				}
+				break;
+			}
+		default:
+		{
+			ret_val = -EINVAL;
+		}
+	}
+	return ret_val;
+}
+
 struct file_operations aesd_fops = {
     .owner =    THIS_MODULE,
     .read =     aesd_read,
     .write =    aesd_write,
     .open =     aesd_open,
+	.llseek =   aesd_llseek,
+	.unlocked_ioctl = aesd_ioctl,
     .release =  aesd_release,
 };
 
@@ -237,6 +291,46 @@ void aesd_cleanup_module(void)
 
 
 	unregister_chrdev_region(devno, 1);
+}
+
+/*A9*/
+static long aesd_adjust_file_offset(struct file *filp, unsigned int write_cmd, unsigned int write_cmd_offset)
+{
+	struct aesd_dev *dev = filp->private_data;
+	loff_t offset = 0;
+	int i = 0;
+	int ret_val =0;
+	if(!dev)
+	{
+		return -EINVAL;
+	}
+	if(mutex_lock_interruptible(&dev->lock))
+		return -ERESTARTSYS;
+	
+	if(write_cmd > (AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED-1))
+	{
+		printk(" Invalid write cmd");
+		return -1;
+	}
+	if(write_cmd_offset > (dev->device_buffer.entry[write_cmd].size - 1))
+	{
+		printk("Invalid offset");
+		return -1;
+	}
+	for(i=0;i< (write_cmd);i++)
+	{
+		if(dev->device_buffer.entry[i].size == 0)
+		{
+			return -1;
+		}
+		offset += dev->device_buffer.entry[i].size;//iterating through all the entries
+	}
+	offset = offset + write_cmd_offset;
+
+	filp->f_pos = offset;
+	mutex_unlock(&dev->lock);
+
+	return ret_val;
 }
 
 
