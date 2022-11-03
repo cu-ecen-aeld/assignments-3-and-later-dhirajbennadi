@@ -195,6 +195,8 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				}
 				else
 				{
+					PDEBUG("Dhiraj Bennadi Command Write: %d", seekto.write_cmd));
+					PDEBUG("Dhiraj Bennadi Command Offset: %d", seekto.write_cmd_offset));
 					ret_val = aesd_adjust_file_offset(filp, seekto.write_cmd, seekto.write_cmd_offset);
 				}
 				break;
