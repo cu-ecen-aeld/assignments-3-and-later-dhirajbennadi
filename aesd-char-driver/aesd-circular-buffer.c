@@ -29,37 +29,33 @@
 struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
             size_t char_offset, size_t *entry_offset_byte_rtn )
 {
-    /**
-    * TODO: implement per description
-    */
-    int buff_index = buffer->out_offs;
-    size_t char_count = (buffer->entry[buffer->out_offs]).size;
-    size_t prev_pos   = 0;
-    
-    if(buffer == NULL) 
+    //
+    int current_entry = buffer->out_offs;
+    int total_size = buffer->entry[current_entry].size;
+    // if the offset is less than the size of first entry. No need to traverse
+    if(char_offset<total_size)
     {
-       return NULL;
+        *entry_offset_byte_rtn = char_offset;
+        return &buffer->entry[current_entry];
     }
-    
-    while(char_offset > (char_count - 1))
-    { 
-        prev_pos = char_count; 
-        buff_index = (buff_index + 1) % (AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED);
-        
-        if(buff_index == buffer->out_offs)
-        {
-            return NULL;
+    else
+    {
+        while(char_offset>= total_size)
+        {   //next entry in the buffer
+            current_entry = (current_entry + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+            // If we reach end of Circular buffer before getting the char_offset
+            if(current_entry == buffer->in_offs)
+            {
+                return NULL;
+            }
+            // add the size of current entry to the total
+            total_size += buffer->entry[current_entry].size;
         }
-        char_count  += (buffer->entry[buff_index]).size;
-    }
+        *entry_offset_byte_rtn = char_offset - (total_size - buffer->entry[current_entry].size);
+        return &buffer->entry[current_entry];
 
-    if(char_offset <= (char_count - 1))
-    {
-        *entry_offset_byte_rtn = char_offset - prev_pos;
-        return &buffer->entry[buff_index];
     }
     
-    return NULL;
 }
 
 /**
@@ -69,50 +65,49 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 * Any necessary locking must be handled by the caller
 * Any memory referenced in @param add_entry must be allocated by and/or must have a lifetime managed by the caller.
 */
-const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
-{
-    const char* ret_entry = NULL;
+const char * aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
+{   
+    
     /**
     * TODO: implement per description 
     */
-
-    if ((buffer == NULL) || (add_entry == NULL))
+    
+    const char* ret_entry = NULL;
+    
+    if((buffer == NULL)||(add_entry == NULL))
     {
-        return ret_entry;
+    	return ret_entry;
     }
-
+    
     if(buffer->full)
     {
        ret_entry = buffer->entry[buffer->out_offs].buffptr;
     }
-
-    // buffer->entry[buffer->in_offs].buffptr = add_entry->buffptr;
-    // buffer->entry[buffer->in_offs].size = add_entry->size;
-
+    
     buffer->entry[buffer->in_offs] = *add_entry;
-
-    buffer->in_offs = (buffer->in_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
-
-    if (buffer->full == true)
+    
+    if(buffer->full ==  true)
     {
-        buffer->filledBufferSize -= add_entry->size;
-        buffer->out_offs = (buffer->out_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        buffer->filled_buffer_size -= add_entry->size;
+	    buffer->out_offs = (buffer->out_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+	    buffer->in_offs = (buffer->in_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; 
     }
     else
     {
-        buffer->filledBufferSize += add_entry->size;
+        buffer->filled_buffer_size += add_entry->size;
+    	buffer->in_offs = (buffer->in_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; 
     }
-
-    if (buffer->in_offs == buffer->out_offs)
+    
+    if(buffer->in_offs == buffer->out_offs)
     {
-        buffer->full = true;
+    	buffer->full = true;
     }
     else
     {
-        buffer->full = false;
-    }
-
-    return ret_entry;
+    	buffer->full = false;
+    } 
+    
+    return ret_entry;  
 }
 
 /**
