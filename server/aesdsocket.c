@@ -237,6 +237,8 @@ void* thread_func(void* thread_params)
     {
 	syslog(LOG_ERR, "failed to open a file:%d\n", errno);
     }
+
+    syslog(LOG_ERR, "Dhiraj : %s\n", client_read_buf);
     //Handling IOCTL, Preferrably write a separate func.
     if(strncmp(client_read_buf, ioctl_aesdchar, strlen(ioctl_aesdchar))==0)
     {
@@ -251,8 +253,8 @@ void* thread_func(void* thread_params)
         Y = atoi(y);
         seekto.write_cmd = X;
         seekto.write_cmd_offset = Y;
-        printf("Dhiraj Bennadi Socket Command : %d\n", seekto.write_cmd);
-        printf("Dhiraj Bennadi Socket Offer : %d\n", seekto.write_cmd_offset);
+        //printf("Dhiraj Bennadi Socket Command : %d\n", seekto.write_cmd);
+        //printf("Dhiraj Bennadi Socket Offer : %d\n", seekto.write_cmd_offset);
         int result_ret = ioctl(fd, AESDCHAR_IOCSEEKTO, &seekto);
     }
     else
