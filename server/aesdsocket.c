@@ -259,16 +259,19 @@ void *socketThreadProcessing(void *thread_params)
     if(strncmp(client_read_buf, ioctl_aesdchar, strlen(ioctl_aesdchar))==0)
     {
         struct aesd_seekto seekto;
-        syslog(LOG_DEBUG,"AESDCHAR_IOCSEEKTO is received\n");
-        char x[2]={"\0"};
-        char y[2]= {"\0"};
-        int X=0;int Y=0;
-        memcpy(&x[0],(client_read_buf+strlen(ioctl_aesdchar)),1);
-        memcpy(&y[0],(client_read_buf+strlen(ioctl_aesdchar))+2,1);
-        X = atoi(x);//converting into int
-        Y = atoi(y);
-        seekto.write_cmd = X;
-        seekto.write_cmd_offset = Y;
+
+        sscanf(client_read_buf, "AESDCHAR_IOCSEEKTO:%d,%d",&seekto.write_cmd,&seekto.write_cmd_offset);
+
+        // syslog(LOG_DEBUG,"AESDCHAR_IOCSEEKTO is received\n");
+        // char x[2]={"\0"};
+        // char y[2]= {"\0"};
+        // int X=0;int Y=0;
+        // memcpy(&x[0],(client_read_buf+strlen(ioctl_aesdchar)),1);
+        // memcpy(&y[0],(client_read_buf+strlen(ioctl_aesdchar))+2,1);
+        // X = atoi(x);//converting into int
+        // Y = atoi(y);
+        // seekto.write_cmd = X;
+        // seekto.write_cmd_offset = Y;
         int result_ret = ioctl(fd, AESDCHAR_IOCSEEKTO, &seekto);
     }
     else
