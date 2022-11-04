@@ -202,7 +202,7 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				}
 				else
 				{
-					printk(KERN_WARNING "Dhiraj Write Cmd Offset = %d", seekto.write_cmd_offset);
+					//printk(KERN_WARNING "Dhiraj Write Cmd Offset = %d", seekto.write_cmd_offset);
 
 					ret_val = aesd_adjust_file_offset(filp, seekto.write_cmd, seekto.write_cmd_offset);
 				}
