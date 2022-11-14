@@ -95,7 +95,12 @@ const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, 
 
     if (buffer->full == true)
     {
+        buffer->filledBufferSize -= add_entry->size;
         buffer->out_offs = (buffer->out_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+    }
+    else
+    {
+        buffer->filledBufferSize += add_entry->size;
     }
 
     if (buffer->in_offs == buffer->out_offs)
